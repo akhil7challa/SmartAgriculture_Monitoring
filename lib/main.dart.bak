@@ -1,0 +1,255 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+
+import 'firebase_options.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  runApp(const SmartPlantApp());
+}
+
+class SmartPlantApp extends StatelessWidget {
+  const SmartPlantApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+
+      theme: ThemeData(colorSchemeSeed: Colors.green, useMaterial3: true),
+
+      home: const Dashboard(),
+    );
+  }
+}
+
+class Dashboard extends StatelessWidget {
+  const Dashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    DatabaseReference plantRef = FirebaseDatabase.instance.ref(
+      "devices/plant001",
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("🌿 Smart Plant Pot"),
+
+        centerTitle: true,
+      ),
+
+      body: StreamBuilder(
+        stream: plantRef.onValue,
+
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          Map data = Map<String, dynamic>.from(
+            snapshot.data!.snapshot.value as Map,
+          );
+
+          String mode = data["mode"] ?? "AUTO";
+
+          String pumpStatus = data["pumpStatus"] ?? "OFF";
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+
+            child: Column(
+              children: [
+                const Text(
+                  "🌱 Plant 001",
+
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 20),
+
+                SensorCard(
+                  icon: "🌡️",
+
+                  title: "Temperature",
+
+                  value: "${data["temperature"]} °C",
+                ),
+
+                SensorCard(
+                  icon: "💧",
+
+                  title: "Humidity",
+
+                  value: "${data["humidity"]} %",
+                ),
+
+                SensorCard(
+                  icon: "🌱",
+
+                  title: "Soil Moisture",
+
+                  value: "${data["soilMoisture"]} %",
+                ),
+
+                const SizedBox(height: 20),
+
+                const Divider(),
+
+                const Text(
+                  "🚰 Pump Status",
+
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  pumpStatus,
+
+                  style: TextStyle(
+                    fontSize: 32,
+
+                    fontWeight: FontWeight.bold,
+
+                    color: pumpStatus == "ON" ? Colors.green : Colors.red,
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                const Divider(),
+
+                const Text(
+                  "⚙ Control Mode",
+
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 10),
+
+                Card(
+                  child: SwitchListTile(
+                    title: const Text(
+                      "Automatic Watering",
+
+                      style: TextStyle(
+                        fontSize: 18,
+
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    subtitle: Text(
+                      mode == "AUTO"
+                          ? "AUTO mode - ESP32 controls pump"
+                          : "MANUAL mode - App controls pump",
+                    ),
+
+                    value: mode == "AUTO",
+
+                    onChanged: (value) {
+                      plantRef.child("mode").set(value ? "AUTO" : "MANUAL");
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                if (mode == "MANUAL")
+                  Column(
+                    children: [
+                      const Divider(),
+
+                      const Text(
+                        "🚰 Manual Pump Control",
+
+                        style: TextStyle(
+                          fontSize: 22,
+
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.water_drop),
+
+                            label: const Text("START"),
+
+                            onPressed: () {
+                              plantRef.child("pumpCommand").set("ON");
+                            },
+                          ),
+
+                          const SizedBox(width: 20),
+
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.stop),
+
+                            label: const Text("STOP"),
+
+                            onPressed: () {
+                              plantRef.child("pumpCommand").set("OFF");
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class SensorCard extends StatelessWidget {
+  final String icon;
+
+  final String title;
+
+  final String value;
+
+  const SensorCard({
+    super.key,
+
+    required this.icon,
+
+    required this.title,
+
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+
+      margin: const EdgeInsets.symmetric(vertical: 8),
+
+      child: ListTile(
+        leading: Text(icon, style: const TextStyle(fontSize: 30)),
+
+        title: Text(title, style: const TextStyle(fontSize: 18)),
+
+        trailing: Text(
+          value,
+
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}

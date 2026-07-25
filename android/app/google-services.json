@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "358457203017",
+    "firebase_url": "https://smartpotplant-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "smartpotplant",
+    "storage_bucket": "smartpotplant.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:358457203017:android:532b66735598fb8966e298",
+        "android_client_info": {
+          "package_name": "com.example.smart_plant_monitoring"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdO9d7neebkdQobnDtYOsLZymfX0uCMXg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
