@@ -5,6 +5,7 @@ import '../../models/farm.dart';
 import '../../shared/widgets/farm_card.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/search_box.dart';
+import '../../shared/widgets/summary_card.dart';
 
 class FarmsScreen extends StatefulWidget {
   const FarmsScreen({super.key});
@@ -74,6 +75,41 @@ class _FarmsScreenState extends State<FarmsScreen> {
                   icon: const Icon(Icons.add),
                   label: const Text("New Farm"),
                 ),
+              ),
+
+              GridView.count(
+                crossAxisCount: 4,
+                crossAxisSpacing: 20,
+                mainAxisSpacing: 20,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 2.4,
+                children: [
+                  SummaryCard(
+                    title: "Farms",
+                    value: farms.length.toString(),
+                    icon: Icons.agriculture,
+                    color: Colors.green,
+                  ),
+                  const SummaryCard(
+                    title: "Zones",
+                    value: "1",
+                    icon: Icons.map,
+                    color: Colors.blue,
+                  ),
+                  const SummaryCard(
+                    title: "Devices",
+                    value: "1",
+                    icon: Icons.memory,
+                    color: Colors.orange,
+                  ),
+                  const SummaryCard(
+                    title: "Online",
+                    value: "1",
+                    icon: Icons.wifi,
+                    color: Colors.teal,
+                  ),
+                ],
               ),
 
               const SizedBox(height: 30),
