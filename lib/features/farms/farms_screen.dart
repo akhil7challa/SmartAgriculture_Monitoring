@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/services/firebase_service.dart';
+import '../../core/services/firebase_service.dart';
 import '../../models/farm.dart';
+import '../../shared/widgets/farm_card.dart';
+import '../../shared/widgets/page_header.dart';
+import '../../shared/widgets/search_box.dart';
 
 class FarmsScreen extends StatefulWidget {
   const FarmsScreen({super.key});
@@ -15,6 +18,8 @@ class _FarmsScreenState extends State<FarmsScreen> {
 
   late Future<List<Farm>> farmsFuture;
 
+  final TextEditingController searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -22,48 +27,116 @@ class _FarmsScreenState extends State<FarmsScreen> {
   }
 
   @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Farms")),
-      body: FutureBuilder<List<Farm>>(
-        future: farmsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return FutureBuilder<List<Farm>>(
+      future: farmsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
-          }
+        if (snapshot.hasError) {
+          return Center(child: Text(snapshot.error.toString()));
+        }
 
-          final farms = snapshot.data ?? [];
+        List<Farm> farms = snapshot.data ?? [];
 
-          if (farms.isEmpty) {
-            return const Center(child: Text("No farms found"));
-          }
+        // Search Filter
+        if (searchController.text.isNotEmpty) {
+          farms = farms.where((farm) {
+            return farm.name.toLowerCase().contains(
+                  searchController.text.toLowerCase(),
+                ) ||
+                farm.location.toLowerCase().contains(
+                  searchController.text.toLowerCase(),
+                );
+          }).toList();
+        }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(20),
-            itemCount: farms.length,
-            itemBuilder: (context, index) {
-              final farm = farms[index];
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 20),
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.agriculture)),
-                  title: Text(farm.name),
-                  subtitle: Text(farm.location),
-                  trailing: ElevatedButton(
-                    onPressed: () {},
-                    child: const Text("Open"),
-                  ),
+        return Padding(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PageHeader(
+                title: "Farms",
+                subtitle: "Manage all your farms from one place.",
+                action: ElevatedButton.icon(
+                  onPressed: () {
+                    // We'll implement this in the next step
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text("New Farm"),
                 ),
-              );
-            },
-          );
-        },
-      ),
+              ),
+
+              const SizedBox(height: 30),
+
+              SearchBox(controller: searchController),
+
+              const SizedBox(height: 30),
+
+              Expanded(
+                child: farms.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No farms found",
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          int crossAxisCount = 1;
+
+                          if (constraints.maxWidth > 700) {
+                            crossAxisCount = 2;
+                          }
+
+                          if (constraints.maxWidth > 1100) {
+                            crossAxisCount = 3;
+                          }
+
+                          if (constraints.maxWidth > 1500) {
+                            crossAxisCount = 4;
+                          }
+
+                          return GridView.builder(
+                            itemCount: farms.length,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: 20,
+                                  mainAxisSpacing: 20,
+                                  childAspectRatio: 1.25,
+                                ),
+                            itemBuilder: (context, index) {
+                              final farm = farms[index];
+
+                              return FarmCard(
+                                farm: farm,
+                                onOpen: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Opening ${farm.name}..."),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
