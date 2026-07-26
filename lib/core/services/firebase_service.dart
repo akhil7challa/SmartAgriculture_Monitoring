@@ -103,4 +103,22 @@ class FirebaseService {
         .where((device) => device.farmId == farmId)
         .toList();
   }
+
+  Future<List<Device>> getDevicesByFarmAndZone(
+    String farmId,
+    String zoneId,
+  ) async {
+    final snapshot = await devicesRef.get();
+
+    if (!snapshot.exists) {
+      return [];
+    }
+
+    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+
+    return data.entries
+        .map((entry) => Device.fromMap(entry.key, entry.value))
+        .where((device) => device.farmId == farmId && device.zoneId == zoneId)
+        .toList();
+  }
 }
