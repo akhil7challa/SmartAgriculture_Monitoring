@@ -61,29 +61,82 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                   if (_zones.isEmpty)
                     const Card(child: ListTile(title: Text("No zones found")))
                   else
-                    ..._zones.map(
-                      (zone) => Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.place),
-                          title: Text(zone.name),
-                          subtitle: Text("Zone ID: ${zone.id}"),
-                          trailing: const Icon(
-                            Icons.arrow_forward_ios,
-                            size: 16,
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ZoneDetailsScreen(
-                                  farm: widget.farm,
-                                  zone: zone,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        int crossAxisCount = 1;
+
+                        if (constraints.maxWidth > 700) {
+                          crossAxisCount = 2;
+                        }
+
+                        if (constraints.maxWidth > 1100) {
+                          crossAxisCount = 3;
+                        }
+
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _zones.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 1.8,
+                              ),
+                          itemBuilder: (context, index) {
+                            final zone = _zones[index];
+
+                            return Card(
+                              elevation: 2,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ZoneDetailsScreen(
+                                        farm: widget.farm,
+                                        zone: zone,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.place,
+                                        size: 32,
+                                        color: Colors.blue,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        zone.name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        "Zone ID: ${zone.id}",
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
                           },
-                        ),
-                      ),
+                        );
+                      },
                     ),
                 ],
               ),

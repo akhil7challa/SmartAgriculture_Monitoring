@@ -121,4 +121,16 @@ class FirebaseService {
         .where((device) => device.farmId == farmId && device.zoneId == zoneId)
         .toList();
   }
+
+  Stream<Map<String, dynamic>?> getCommandStream(String deviceId) {
+    return commandsRef.child(deviceId).onValue.map((event) {
+      final data = event.snapshot.value;
+
+      if (data == null) {
+        return null;
+      }
+
+      return Map<String, dynamic>.from(data as Map);
+    });
+  }
 }

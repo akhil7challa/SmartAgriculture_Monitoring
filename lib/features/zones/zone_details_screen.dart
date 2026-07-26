@@ -73,32 +73,84 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
                       ),
                     )
                   else
-                    ..._devices.map(
-                      (device) => Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.memory),
-                          title: Text(device.name),
-                          subtitle: Text(
-                            "Type: ${device.type}\n"
-                            "Status: ${device.status}\n"
-                            "Device ID: ${device.id}",
-                          ),
-                          isThreeLine: true,
-                          trailing: const Icon(
-                            Icons.arrow_forward_ios,
-                            size: 16,
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    DeviceDetailsScreen(device: device),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        int crossAxisCount = 1;
+
+                        if (constraints.maxWidth > 700) {
+                          crossAxisCount = 2;
+                        }
+
+                        if (constraints.maxWidth > 1100) {
+                          crossAxisCount = 3;
+                        }
+
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _devices.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 1.6,
+                              ),
+                          itemBuilder: (context, index) {
+                            final device = _devices[index];
+
+                            return Card(
+                              elevation: 2,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          DeviceDetailsScreen(device: device),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.memory,
+                                        size: 32,
+                                        color: Colors.orange,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        device.name,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text("Type: ${device.type}"),
+                                      const SizedBox(height: 4),
+                                      Text("Status: ${device.status}"),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Device ID: ${device.id}",
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             );
                           },
-                        ),
-                      ),
+                        );
+                      },
                     ),
                 ],
               ),
