@@ -6,6 +6,7 @@ import '../../shared/widgets/farm_card.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/search_box.dart';
 import '../../shared/widgets/summary_card.dart';
+import 'farm_details_screen.dart';
 
 class FarmsScreen extends StatefulWidget {
   const FarmsScreen({super.key});
@@ -157,9 +158,11 @@ class _FarmsScreenState extends State<FarmsScreen> {
                               return FarmCard(
                                 farm: farm,
                                 onOpen: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("Opening ${farm.name}..."),
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          FarmDetailsScreen(farm: farm),
                                     ),
                                   );
                                 },
