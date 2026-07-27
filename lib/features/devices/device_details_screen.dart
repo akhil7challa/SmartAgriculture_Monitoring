@@ -205,63 +205,13 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1E4D22).withOpacity(0.95),
-            const Color(0xFF102B18).withOpacity(0.95),
-            const Color(0xFF0A1A12).withOpacity(0.98),
+            const Color(0xFF1E4D22),
+            const Color(0xFF102B18),
+            const Color(0xFF0A1A12),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: -20,
-            top: -10,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.greenAccent.withOpacity(0.18),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: -10,
-            top: -20,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.lightGreenAccent.withOpacity(0.12),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          child,
-        ],
-      ),
+      child: child,
     );
   }
 
@@ -309,11 +259,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           const SizedBox(width: 8),
           Text(
             label,
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
           ),
           const SizedBox(width: 12),
           SizedBox(
@@ -357,47 +303,39 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   }
 
   Widget _buildHeader(Device device, Telemetry? telemetry) {
-    final temp = telemetry?.temperature.toDouble() ?? 28.0;
+    final lastUpdated =
+        telemetry == null ? "No data" : _timeAgo(telemetry.lastSeen);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-          child: Row(
-            children: [
-              const Icon(Icons.eco, color: Color(0xFF73F36B), size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  device.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          child: Text(
+            device.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.wb_sunny, color: Colors.orange, size: 18),
-                const SizedBox(width: 4),
-                Text(
-                  "${temp.toStringAsFixed(0)}°C",
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
             const Text(
-              "Sunny",
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              "Last data updated",
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              lastUpdated,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -439,22 +377,8 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                         value: score / 100,
                         strokeWidth: 5.5,
                         backgroundColor: Colors.white.withOpacity(0.10),
-                        valueColor: const AlwaysStoppedAnimation(
-                          Color(0xFF6EEB4F),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      height: 74,
-                      width: 74,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.black.withOpacity(0.20),
-                            Colors.transparent,
-                          ],
-                        ),
+                        valueColor:
+                            const AlwaysStoppedAnimation(Color(0xFF6EEB4F)),
                       ),
                     ),
                     Column(
@@ -486,7 +410,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _healthLegendRow(
                       color: const Color(0xFFFF6A3D),
@@ -545,19 +468,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                       strokeWidth: 6,
                       backgroundColor: Colors.white.withOpacity(0.08),
                       valueColor: AlwaysStoppedAnimation(color),
-                    ),
-                  ),
-                  Container(
-                    height: 86,
-                    width: 86,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.03),
-                          Colors.transparent,
-                        ],
-                      ),
                     ),
                   ),
                   Column(
@@ -881,23 +791,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 ? selectedColor.withOpacity(0.35)
                 : Colors.white.withOpacity(0.04),
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: selectedColor.withOpacity(0.18),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: selected ? selectedColor : Colors.white70,
-              size: 18,
-            ),
+            Icon(icon,
+                color: selected ? selectedColor : Colors.white70, size: 18),
             const SizedBox(height: 6),
             Text(
               label,
@@ -913,11 +811,8 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _buildControlButtons(
-    String pump,
-    String mode, {
-    bool fillHeight = false,
-  }) {
+  Widget _buildControlButtons(String pump, String mode,
+      {bool fillHeight = false}) {
     final panel = _glassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,10 +828,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           const SizedBox(height: 4),
           const Text(
             "Manage irrigation and operating mode",
-            style: TextStyle(
-              color: Colors.white60,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
           const SizedBox(height: 18),
           _controlSectionLabel("Pump Control"),
@@ -974,27 +866,73 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     if (fillHeight) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: panel),
-        ],
+        children: [Expanded(child: panel)],
       );
     }
 
     return panel;
   }
 
+  Widget _buildMiniCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required String subtitle,
+    required Color color,
+  }) {
+    return _glassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.04),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Icon(icon, color: color, size: 19),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: color, fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomCards(
-    String pump,
-    String mode,
-    Telemetry? telemetry,
-    bool isMobile,
-  ) {
+      String pump, String mode, Telemetry? telemetry, bool isMobile) {
     final lastSeenText =
         telemetry == null ? "No data" : _formatLastSeen(telemetry.lastSeen);
     final freshness =
         telemetry == null ? "Unknown" : _freshnessLabel(telemetry.lastSeen);
 
-    final cards = [
+    final List<Widget> cards = [
       _buildMiniCard(
         icon: Icons.water_drop,
         title: "Irrigation",
@@ -1052,58 +990,28 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _buildMiniCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required String subtitle,
-    required Color color,
-  }) {
-    return _glassPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _infoLine(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
         children: [
-          Container(
-            height: 42,
-            width: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.04),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
-            ),
-            child: Icon(icon, color: color, size: 19),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
+          SizedBox(
+            width: 68,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: color ?? Colors.white, fontSize: 12.5),
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10.5,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1130,37 +1038,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           _infoLine("ID", device.id),
           _infoLine("Status", device.status,
               color: _statusColor(device.status)),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoLine(String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 68,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                color: color ?? Colors.white,
-                fontSize: 12.5,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
         ],
       ),
     );
@@ -1193,19 +1070,12 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: _buildSoilMoistureCard(telemetry),
-                    ),
+                    Expanded(flex: 3, child: _buildSoilMoistureCard(telemetry)),
                     const SizedBox(width: 16),
                     Expanded(
-                      flex: 2,
-                      child: _buildControlButtons(
-                        pump,
-                        mode,
-                        fillHeight: true,
-                      ),
-                    ),
+                        flex: 2,
+                        child:
+                            _buildControlButtons(pump, mode, fillHeight: true)),
                   ],
                 ),
               )
@@ -1283,7 +1153,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                   final telemetryWaiting = telemetrySnapshot.connectionState ==
                           ConnectionState.waiting &&
                       telemetry == null;
-
                   final commandWaiting = commandSnapshot.connectionState ==
                           ConnectionState.waiting &&
                       commandData == null;
