@@ -14,6 +14,7 @@ dependencies:
   firebase_core: ^3.15.0
   firebase_database: ^11.3.0
   syncfusion_flutter_gauges: ^26.2.14
+  fl_chart: ^0.68.0
 
 dev_dependencies:
   flutter_test:
@@ -22,3 +23,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+

@@ -13,10 +13,6 @@ class FirebaseService {
   DatabaseReference get telemetryRef => _database.ref("telemetry");
   DatabaseReference get commandsRef => _database.ref("commands");
 
-  // -------------------------
-  // Farms
-  // -------------------------
-
   Future<List<Farm>> getAllFarms() async {
     final snapshot = await farmsRef.get();
 
@@ -24,7 +20,8 @@ class FirebaseService {
       return [];
     }
 
-    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(snapshot.value as Map);
 
     return data.entries
         .map((entry) => Farm.fromMap(entry.key, entry.value))
@@ -38,7 +35,8 @@ class FirebaseService {
       return [];
     }
 
-    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(snapshot.value as Map);
 
     return data.entries
         .map((entry) => Device.fromMap(entry.key, entry.value))
@@ -46,24 +44,62 @@ class FirebaseService {
   }
 
   Future<Telemetry?> getTelemetry(String deviceId) async {
-    final snapshot = await telemetryRef.child(deviceId).get();
+    final snapshot = await telemetryRef.child(deviceId).child("livedata").get();
 
     if (!snapshot.exists) {
       return null;
     }
 
-    return Telemetry.fromMap(snapshot.value as Map<dynamic, dynamic>);
+    return Telemetry.fromMap(
+      Map<dynamic, dynamic>.from(snapshot.value as Map),
+    );
   }
 
   Stream<Telemetry?> getTelemetryStream(String deviceId) {
-    return telemetryRef.child(deviceId).onValue.map((event) {
+    return telemetryRef.child(deviceId).child("livedata").onValue.map((event) {
       final data = event.snapshot.value;
 
       if (data == null) {
         return null;
       }
 
-      return Telemetry.fromMap(data as Map<dynamic, dynamic>);
+      return Telemetry.fromMap(
+        Map<dynamic, dynamic>.from(data as Map),
+      );
+    });
+  }
+
+  Stream<List<Telemetry>> getTelemetryHistoryStream(
+    String deviceId, {
+    int limit = 1000,
+  }) {
+    return telemetryRef
+        .child(deviceId)
+        .child("historydata")
+        .orderByChild("lastSeen")
+        .limitToLast(limit)
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value;
+
+      if (data == null) {
+        return <Telemetry>[];
+      }
+
+      final Map<dynamic, dynamic> map = Map<dynamic, dynamic>.from(data as Map);
+
+      final list = map.entries.map((entry) {
+        final value = Map<dynamic, dynamic>.from(entry.value as Map);
+
+        if (!value.containsKey("lastSeen") && value.containsKey("lastseen")) {
+          value["lastSeen"] = value["lastseen"];
+        }
+
+        return Telemetry.fromMap(value);
+      }).toList();
+
+      list.sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
+      return list;
     });
   }
 
@@ -82,7 +118,8 @@ class FirebaseService {
       return [];
     }
 
-    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(snapshot.value as Map);
 
     return data.entries
         .map((entry) => Zone.fromMap(entry.key, entry.value))
@@ -96,7 +133,8 @@ class FirebaseService {
       return [];
     }
 
-    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(snapshot.value as Map);
 
     return data.entries
         .map((entry) => Device.fromMap(entry.key, entry.value))
@@ -114,7 +152,8 @@ class FirebaseService {
       return [];
     }
 
-    final Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(snapshot.value as Map);
 
     return data.entries
         .map((entry) => Device.fromMap(entry.key, entry.value))

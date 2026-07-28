@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services/firebase_service.dart';
@@ -97,19 +98,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _iconCircle(IconData icon, Color color) {
-    return Container(
-      height: 42,
-      width: 42,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color.withOpacity(0.10),
-        border: Border.all(color: color.withOpacity(0.20)),
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
   Widget _buildTopBar() {
     return Row(
       children: [
@@ -185,263 +173,291 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   }) {
     final clamped = percent.clamp(0.0, 1.0);
 
-    return Expanded(
-      child: _glassPanel(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 104,
-              width: 104,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    height: 104,
-                    width: 104,
-                    child: CircularProgressIndicator(
-                      value: clamped,
-                      strokeWidth: 6,
-                      backgroundColor: Colors.white.withOpacity(0.08),
-                      valueColor: AlwaysStoppedAnimation(color),
-                    ),
+    return _glassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 104,
+            width: 104,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  height: 104,
+                  width: 104,
+                  child: CircularProgressIndicator(
+                    value: clamped,
+                    strokeWidth: 6,
+                    backgroundColor: Colors.white.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation(color),
                   ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        value,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.16)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(badgeIcon, size: 12, color: color),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      badge,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.16)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(badgeIcon, size: 12, color: color),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    badge,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              change,
-              style: TextStyle(
-                color: color,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            change,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 2),
-            const Text(
-              "vs yesterday",
-              style: TextStyle(color: Colors.white54, fontSize: 10),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            "vs yesterday",
+            style: TextStyle(color: Colors.white54, fontSize: 10),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildMetricsRow(Telemetry? telemetry, bool isMobile) {
+  Widget _buildTrendChart({
+    required String title,
+    required Color color,
+    required List<double> values,
+  }) {
+    final spots = values.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value);
+    }).toList();
+
+    final minY = values.isEmpty ? 0.0 : values.reduce((a, b) => a < b ? a : b);
+    final maxY = values.isEmpty ? 1.0 : values.reduce((a, b) => a > b ? a : b);
+
+    final adjustedMaxY = maxY == minY ? maxY + 1 : maxY;
+    final adjustedMinY = maxY == minY ? minY - 1 : minY;
+
+    return _glassPanel(
+      padding: const EdgeInsets.all(12),
+      radius: BorderRadius.circular(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 150,
+            child: values.isEmpty
+                ? const Center(
+                    child: Text(
+                      "No history data",
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  )
+                : LineChart(
+                    LineChartData(
+                      minX: 0,
+                      maxX: (values.length - 1).toDouble(),
+                      minY: adjustedMinY,
+                      maxY: adjustedMaxY,
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        getDrawingHorizontalLine: (_) => FlLine(
+                          color: Colors.white.withOpacity(0.08),
+                          strokeWidth: 1,
+                        ),
+                      ),
+                      titlesData: const FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                      ),
+                      borderData: FlBorderData(
+                        show: true,
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.08)),
+                      ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          color: color,
+                          barWidth: 2.6,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: color.withOpacity(0.15),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricWithChart({
+    required Widget metricCard,
+    required Widget chart,
+  }) {
+    return Column(
+      children: [
+        metricCard,
+        const SizedBox(height: 10),
+        chart,
+      ],
+    );
+  }
+
+  Widget _buildMetricSections(
+    Telemetry? telemetry,
+    List<Telemetry> history,
+    bool isMobile,
+  ) {
     final temp = telemetry?.temperature.toDouble() ?? 0.0;
     final humidity = telemetry?.humidity.toDouble() ?? 0.0;
     final soil = telemetry?.soilMoisture.toDouble() ?? 0.0;
 
+    final temperatureValues =
+        history.map((e) => e.temperature.toDouble()).toList();
+    final humidityValues = history.map((e) => e.humidity.toDouble()).toList();
+    final soilValues = history.map((e) => e.soilMoisture.toDouble()).toList();
+
+    final temperatureSection = _buildMetricWithChart(
+      metricCard: _buildArcMetricCard(
+        title: "Temperature",
+        value: "${temp.toStringAsFixed(1)}°c",
+        percent: temp / 50,
+        color: const Color(0xFFFF8A2A),
+        badge: _temperatureStatus(temp),
+        change: "+1.2°",
+        badgeIcon: Icons.check_circle,
+      ),
+      chart: _buildTrendChart(
+        title: "Temperature Trend",
+        color: const Color(0xFFFF8A2A),
+        values: temperatureValues,
+      ),
+    );
+
+    final humiditySection = _buildMetricWithChart(
+      metricCard: _buildArcMetricCard(
+        title: "Humidity",
+        value: "${humidity.toStringAsFixed(0)}%",
+        percent: humidity / 100,
+        color: const Color(0xFF42B7FF),
+        badge: _humidityStatus(humidity),
+        change: "-2%",
+        badgeIcon: Icons.check_circle,
+      ),
+      chart: _buildTrendChart(
+        title: "Humidity Trend",
+        color: const Color(0xFF42B7FF),
+        values: humidityValues,
+      ),
+    );
+
+    final soilSection = _buildMetricWithChart(
+      metricCard: _buildArcMetricCard(
+        title: "Soil Moisture",
+        value: "${soil.toStringAsFixed(0)}%",
+        percent: soil / 100,
+        color: soil < 45 ? const Color(0xFFFFB347) : const Color(0xFF9AFB65),
+        badge: _soilStatus(soil),
+        change: soil < 45 ? "-5%" : "+3%",
+        badgeIcon: soil < 45 ? Icons.warning_amber_rounded : Icons.check_circle,
+      ),
+      chart: _buildTrendChart(
+        title: "Soil Moisture Trend",
+        color: soilValues.isNotEmpty && soilValues.last < 45
+            ? const Color(0xFFFFB347)
+            : const Color(0xFF7CFC6A),
+        values: soilValues,
+      ),
+    );
+
     if (isMobile) {
       return Column(
         children: [
-          Row(
-            children: [
-              _buildArcMetricCard(
-                title: "Temperature",
-                value: "${temp.toStringAsFixed(1)}°c",
-                percent: temp / 50,
-                color: const Color(0xFFFF8A2A),
-                badge: _temperatureStatus(temp),
-                change: "+1.2°",
-                badgeIcon: Icons.check_circle,
-              ),
-              const SizedBox(width: 12),
-              _buildArcMetricCard(
-                title: "Humidity",
-                value: "${humidity.toStringAsFixed(0)}%",
-                percent: humidity / 100,
-                color: const Color(0xFF42B7FF),
-                badge: _humidityStatus(humidity),
-                change: "-2%",
-                badgeIcon: Icons.check_circle,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildArcMetricCard(
-                title: "Soil Moisture",
-                value: "${soil.toStringAsFixed(0)}%",
-                percent: soil / 100,
-                color: soil < 45
-                    ? const Color(0xFFFFB347)
-                    : const Color(0xFF9AFB65),
-                badge: _soilStatus(soil),
-                change: soil < 45 ? "-5%" : "+3%",
-                badgeIcon: soil < 45
-                    ? Icons.warning_amber_rounded
-                    : Icons.check_circle,
-              ),
-              const Spacer(),
-            ],
-          ),
+          temperatureSection,
+          const SizedBox(height: 14),
+          humiditySection,
+          const SizedBox(height: 14),
+          soilSection,
         ],
       );
     }
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildArcMetricCard(
-          title: "Temperature",
-          value: "${temp.toStringAsFixed(1)}°c",
-          percent: temp / 50,
-          color: const Color(0xFFFF8A2A),
-          badge: _temperatureStatus(temp),
-          change: "+1.2°",
-          badgeIcon: Icons.check_circle,
-        ),
+        Expanded(child: temperatureSection),
         const SizedBox(width: 12),
-        _buildArcMetricCard(
-          title: "Humidity",
-          value: "${humidity.toStringAsFixed(0)}%",
-          percent: humidity / 100,
-          color: const Color(0xFF42B7FF),
-          badge: _humidityStatus(humidity),
-          change: "-2%",
-          badgeIcon: Icons.check_circle,
-        ),
+        Expanded(child: humiditySection),
         const SizedBox(width: 12),
-        _buildArcMetricCard(
-          title: "Soil Moisture",
-          value: "${soil.toStringAsFixed(0)}%",
-          percent: soil / 100,
-          color: soil < 45 ? const Color(0xFFFFB347) : const Color(0xFF9AFB65),
-          badge: _soilStatus(soil),
-          change: soil < 45 ? "-5%" : "+3%",
-          badgeIcon:
-              soil < 45 ? Icons.warning_amber_rounded : Icons.check_circle,
-        ),
+        Expanded(child: soilSection),
       ],
-    );
-  }
-
-  Widget _buildSoilMoistureCard(Telemetry? telemetry) {
-    final soil = telemetry?.soilMoisture.toDouble() ?? 0.0;
-    final status = _soilStatus(soil);
-    final lineColor =
-        soil < 45 ? const Color(0xFFFFB347) : const Color(0xFF7CFC6A);
-
-    return _glassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _iconCircle(Icons.water_drop, const Color(0xFF4BE2D4)),
-              const SizedBox(width: 10),
-              const Text(
-                "Soil Moisture",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "${soil.toStringAsFixed(0)}%",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              height: 1,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            status,
-            style: TextStyle(
-              color:
-                  soil < 45 ? const Color(0xFFFFB347) : const Color(0xFF9AFB65),
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 72,
-            child: CustomPaint(
-              size: const Size(double.infinity, 72),
-              painter: _SimpleTrendPainter(color: lineColor),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: LinearProgressIndicator(
-              value: soil / 100,
-              minHeight: 11,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor: AlwaysStoppedAnimation(lineColor),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("0%", style: TextStyle(color: Colors.white54, fontSize: 11)),
-              Text("50%",
-                  style: TextStyle(color: Colors.white54, fontSize: 11)),
-              Text("100%",
-                  style: TextStyle(color: Colors.white54, fontSize: 11)),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -622,6 +638,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   Widget _buildContent({
     required Device device,
     required Telemetry? telemetry,
+    required List<Telemetry> history,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -634,9 +651,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             const SizedBox(height: 16),
             _buildHeader(device, telemetry),
             const SizedBox(height: 16),
-            _buildMetricsRow(telemetry, isMobile),
-            const SizedBox(height: 16),
-            _buildSoilMoistureCard(telemetry),
+            _buildMetricSections(telemetry, history, isMobile),
             const SizedBox(height: 16),
             _buildBottomCards(telemetry, isMobile),
             const SizedBox(height: 16),
@@ -682,101 +697,53 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 );
               }
 
-              final telemetry = telemetrySnapshot.data;
-              final telemetryWaiting = telemetrySnapshot.connectionState ==
-                      ConnectionState.waiting &&
-                  telemetry == null;
+              return StreamBuilder<List<Telemetry>>(
+                stream: _firebaseService.getTelemetryHistoryStream(
+                  device.id,
+                  limit: 1000,
+                ),
+                builder: (context, historySnapshot) {
+                  if (historySnapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          "Error loading telemetry history:\n${historySnapshot.error}",
+                          style: const TextStyle(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
 
-              if (telemetryWaiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                );
-              }
+                  final telemetry = telemetrySnapshot.data;
+                  final history = historySnapshot.data ?? [];
 
-              return _buildContent(
-                device: device,
-                telemetry: telemetry,
+                  final telemetryWaiting = telemetrySnapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      telemetry == null;
+
+                  final historyWaiting = historySnapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      history.isEmpty;
+
+                  if (telemetryWaiting || historyWaiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  }
+
+                  return _buildContent(
+                    device: device,
+                    telemetry: telemetry,
+                    history: history,
+                  );
+                },
               );
             },
           ),
         ),
       ),
     );
-  }
-}
-
-class _SimpleTrendPainter extends CustomPainter {
-  final Color color;
-
-  _SimpleTrendPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final glowPaint = Paint()
-      ..color = color.withOpacity(0.18)
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          color.withOpacity(0.20),
-          color.withOpacity(0.02),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-
-    final points = <Offset>[
-      Offset(0, size.height * 0.72),
-      Offset(size.width * 0.08, size.height * 0.62),
-      Offset(size.width * 0.14, size.height * 0.68),
-      Offset(size.width * 0.22, size.height * 0.44),
-      Offset(size.width * 0.30, size.height * 0.50),
-      Offset(size.width * 0.38, size.height * 0.38),
-      Offset(size.width * 0.46, size.height * 0.57),
-      Offset(size.width * 0.54, size.height * 0.49),
-      Offset(size.width * 0.62, size.height * 0.30),
-      Offset(size.width * 0.70, size.height * 0.42),
-      Offset(size.width * 0.78, size.height * 0.22),
-      Offset(size.width * 0.86, size.height * 0.28),
-      Offset(size.width * 0.94, size.height * 0.10),
-      Offset(size.width, size.height * 0.12),
-    ];
-
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-
-    for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final curr = points[i];
-      final midX = (prev.dx + curr.dx) / 2;
-      final midY = (prev.dy + curr.dy) / 2;
-      path.quadraticBezierTo(prev.dx, prev.dy, midX, midY);
-    }
-
-    path.lineTo(points.last.dx, points.last.dy);
-
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, glowPaint);
-    canvas.drawPath(path, linePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SimpleTrendPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
