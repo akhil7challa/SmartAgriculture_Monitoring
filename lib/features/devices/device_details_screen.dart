@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -16,6 +18,65 @@ class DeviceDetailsScreen extends StatefulWidget {
 
 class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+
+  Timer? _cleanupTimer;
+  String? _lastCleanupSlotKey;
+  bool _cleanupRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _runCleanupOnce();
+    _startScheduledCleanup();
+  }
+
+  @override
+  void dispose() {
+    _cleanupTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _runCleanupOnce() async {
+    if (_cleanupRunning) return;
+
+    _cleanupRunning = true;
+    try {
+      await _firebaseService.cleanupOldTelemetryHistory(
+        widget.device.id,
+        keepLatest: 1000,
+      );
+    } catch (_) {
+      // silent fail
+    } finally {
+      _cleanupRunning = false;
+    }
+  }
+
+  void _startScheduledCleanup() {
+    _checkAndRunScheduledCleanup();
+
+    _cleanupTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _checkAndRunScheduledCleanup();
+    });
+  }
+
+  Future<void> _checkAndRunScheduledCleanup() async {
+    final now = DateTime.now();
+    final minute = now.minute;
+
+    final isCleanupMinute =
+        minute == 0 || minute == 15 || minute == 30 || minute == 45;
+
+    if (!isCleanupMinute) return;
+
+    final slotKey =
+        "${now.year}-${now.month}-${now.day}-${now.hour}-${now.minute}";
+
+    if (_lastCleanupSlotKey == slotKey) return;
+
+    _lastCleanupSlotKey = slotKey;
+    await _runCleanupOnce();
+  }
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {

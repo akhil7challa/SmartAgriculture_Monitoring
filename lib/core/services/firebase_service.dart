@@ -172,4 +172,43 @@ class FirebaseService {
       return Map<String, dynamic>.from(data as Map);
     });
   }
+
+  Future<void> cleanupOldTelemetryHistory(
+    String deviceId, {
+    int keepLatest = 1000,
+  }) async {
+    final historyRef = telemetryRef.child(deviceId).child("historydata");
+    final snapshot = await historyRef.get();
+
+    if (!snapshot.exists) {
+      return;
+    }
+
+    final data = Map<dynamic, dynamic>.from(snapshot.value as Map);
+
+    final entries = data.entries.map((entry) {
+      final value = Map<dynamic, dynamic>.from(entry.value as Map);
+
+      final lastSeen = value["lastSeen"] ?? value["lastseen"] ?? 0;
+
+      return {
+        "key": entry.key.toString(),
+        "lastSeen": (lastSeen as num).toInt(),
+      };
+    }).toList();
+
+    if (entries.length <= keepLatest) {
+      return;
+    }
+
+    entries.sort((a, b) {
+      return (a["lastSeen"] as int).compareTo(b["lastSeen"] as int);
+    });
+
+    final toDelete = entries.take(entries.length - keepLatest);
+
+    for (final item in toDelete) {
+      await historyRef.child(item["key"].toString()).remove();
+    }
+  }
 }
