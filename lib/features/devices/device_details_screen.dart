@@ -16,60 +16,12 @@ class DeviceDetailsScreen extends StatefulWidget {
 class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
-  Future<void> _setPump(String command) async {
-    await _firebaseService.setPumpCommand(widget.device.id, command);
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Pump set to $command"),
-        backgroundColor: command == "ON" ? Colors.green : Colors.orange,
-      ),
-    );
-  }
-
-  Future<void> _setMode(String mode) async {
-    await _firebaseService.setMode(widget.device.id, mode);
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Mode set to $mode"),
-        backgroundColor: mode == "AUTO" ? Colors.blue : Colors.deepOrange,
-      ),
-    );
-  }
-
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'online':
         return const Color(0xFF59E36A);
       case 'offline':
         return const Color(0xFFFF5A5A);
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color _pumpColor(String pumpStatus) {
-    switch (pumpStatus.toUpperCase()) {
-      case 'ON':
-        return const Color(0xFF59E36A);
-      case 'OFF':
-        return Colors.grey;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
-  Color _modeColor(String mode) {
-    switch (mode.toUpperCase()) {
-      case 'AUTO':
-        return const Color(0xFF4DB3FF);
-      case 'MANUAL':
-        return const Color(0xFFFFB347);
       default:
         return Colors.grey;
     }
@@ -100,56 +52,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     if (difference.inMinutes < 60) return "${difference.inMinutes}m ago";
     if (difference.inHours < 24) return "${difference.inHours}h ago";
     return "${difference.inDays}d ago";
-  }
-
-  String _freshnessLabel(int unixTimestamp) {
-    if (unixTimestamp == 0) return "Unknown";
-
-    final now = DateTime.now();
-    final lastSeen = DateTime.fromMillisecondsSinceEpoch(unixTimestamp * 1000);
-    final difference = now.difference(lastSeen);
-
-    if (difference.inMinutes <= 30) return "On Schedule";
-    if (difference.inMinutes <= 60) return "Late";
-    return "Offline";
-  }
-
-  Color _freshnessColor(int unixTimestamp) {
-    if (unixTimestamp == 0) return Colors.grey;
-
-    final now = DateTime.now();
-    final lastSeen = DateTime.fromMillisecondsSinceEpoch(unixTimestamp * 1000);
-    final difference = now.difference(lastSeen);
-
-    if (difference.inMinutes <= 30) return const Color(0xFF59E36A);
-    if (difference.inMinutes <= 60) return const Color(0xFFFFB347);
-    return const Color(0xFFFF5A5A);
-  }
-
-  int _healthScore(Telemetry? telemetry) {
-    if (telemetry == null) return 0;
-
-    final temp = telemetry.temperature.toDouble();
-    final humidity = telemetry.humidity.toDouble();
-    final soil = telemetry.soilMoisture.toDouble();
-
-    double score = 100;
-
-    if (temp < 18 || temp > 38) score -= 15;
-    if (humidity < 35 || humidity > 85) score -= 10;
-    if (soil < 35) score -= 20;
-    if (soil > 85) score -= 10;
-    if (_freshnessLabel(telemetry.lastSeen) == "Late") score -= 10;
-    if (_freshnessLabel(telemetry.lastSeen) == "Offline") score -= 25;
-
-    return score.clamp(0, 100).round();
-  }
-
-  String _healthStatus(int score) {
-    if (score >= 85) return "Healthy";
-    if (score >= 70) return "Good";
-    if (score >= 50) return "Warning";
-    return "Critical";
   }
 
   String _soilStatus(double soil) {
@@ -195,43 +97,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _greenHealthPanel({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1E4D22),
-            const Color(0xFF102B18),
-            const Color(0xFF0A1A12),
-          ],
-        ),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _metricDot(Color color) {
-    return Container(
-      width: 7,
-      height: 7,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.5),
-            blurRadius: 6,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _iconCircle(IconData icon, Color color) {
     return Container(
       height: 42,
@@ -245,40 +110,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _healthLegendRow({
-    required Color color,
-    required String label,
-    required String value,
-  }) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _metricDot(color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 62,
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTopBar() {
     return Row(
       children: [
@@ -288,7 +119,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         ),
         const Expanded(
           child: Text(
-            "Smart Farm",
+            "Device Details",
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
@@ -340,101 +171,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildHealthCard(Telemetry? telemetry) {
-    final score = _healthScore(telemetry);
-    final temp = telemetry?.temperature.toDouble() ?? 0;
-    final humidity = telemetry?.humidity.toDouble() ?? 0;
-    final soil = telemetry?.soilMoisture.toDouble() ?? 0;
-
-    return _greenHealthPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Farm Health",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              SizedBox(
-                height: 110,
-                width: 110,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      height: 92,
-                      width: 92,
-                      child: CircularProgressIndicator(
-                        value: score / 100,
-                        strokeWidth: 5.5,
-                        backgroundColor: Colors.white.withOpacity(0.10),
-                        valueColor:
-                            const AlwaysStoppedAnimation(Color(0xFF6EEB4F)),
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "$score%",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _healthStatus(score),
-                          style: const TextStyle(
-                            color: Color(0xFF9CF77A),
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _healthLegendRow(
-                      color: const Color(0xFFFF6A3D),
-                      label: "Temperature",
-                      value: "${temp.toStringAsFixed(1)}°C",
-                    ),
-                    const SizedBox(height: 12),
-                    _healthLegendRow(
-                      color: const Color(0xFF1FB6FF),
-                      label: "Humidity",
-                      value: "${humidity.toStringAsFixed(0)}%",
-                    ),
-                    const SizedBox(height: 12),
-                    _healthLegendRow(
-                      color: const Color(0xFF67E84A),
-                      label: "Soil Moisture",
-                      value: "${soil.toStringAsFixed(0)}%",
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -709,170 +445,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _controlSectionLabel(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: Colors.white70,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
-      ),
-    );
-  }
-
-  Widget _buildSegmentedToggle({
-    required String leftLabel,
-    required String rightLabel,
-    required String selectedValue,
-    required Color leftColor,
-    required Color rightColor,
-    required VoidCallback onLeftTap,
-    required VoidCallback onRightTap,
-    required IconData leftIcon,
-    required IconData rightIcon,
-  }) {
-    final isLeftSelected = selectedValue == leftLabel;
-    final isRightSelected = selectedValue == rightLabel;
-
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _segmentButton(
-              label: leftLabel,
-              icon: leftIcon,
-              selected: isLeftSelected,
-              selectedColor: leftColor,
-              onTap: onLeftTap,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _segmentButton(
-              label: rightLabel,
-              icon: rightIcon,
-              selected: isRightSelected,
-              selectedColor: rightColor,
-              onTap: onRightTap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _segmentButton({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required Color selectedColor,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color:
-              selected ? selectedColor.withOpacity(0.18) : Colors.transparent,
-          border: Border.all(
-            color: selected
-                ? selectedColor.withOpacity(0.35)
-                : Colors.white.withOpacity(0.04),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon,
-                color: selected ? selectedColor : Colors.white70, size: 18),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? selectedColor : Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlButtons(String pump, String mode,
-      {bool fillHeight = false}) {
-    final panel = _glassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Controls",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            "Manage irrigation and operating mode",
-            style: TextStyle(color: Colors.white60, fontSize: 12),
-          ),
-          const SizedBox(height: 18),
-          _controlSectionLabel("Pump Control"),
-          const SizedBox(height: 10),
-          _buildSegmentedToggle(
-            leftLabel: "ON",
-            rightLabel: "OFF",
-            selectedValue: pump.toUpperCase() == "ON" ? "ON" : "OFF",
-            leftColor: const Color(0xFF2BCB5A),
-            rightColor: const Color(0xFFFF6B57),
-            onLeftTap: () => _setPump("ON"),
-            onRightTap: () => _setPump("OFF"),
-            leftIcon: Icons.play_arrow_rounded,
-            rightIcon: Icons.stop_rounded,
-          ),
-          const SizedBox(height: 18),
-          _controlSectionLabel("Mode Selection"),
-          const SizedBox(height: 10),
-          _buildSegmentedToggle(
-            leftLabel: "AUTO",
-            rightLabel: "MANUAL",
-            selectedValue: mode.toUpperCase() == "AUTO" ? "AUTO" : "MANUAL",
-            leftColor: const Color(0xFF338DFF),
-            rightColor: const Color(0xFFFFB347),
-            onLeftTap: () => _setMode("AUTO"),
-            onRightTap: () => _setMode("MANUAL"),
-            leftIcon: Icons.autorenew_rounded,
-            rightIcon: Icons.touch_app_rounded,
-          ),
-          if (fillHeight) const Spacer(),
-        ],
-      ),
-    );
-
-    if (fillHeight) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [Expanded(child: panel)],
-      );
-    }
-
-    return panel;
-  }
-
   Widget _buildMiniCard({
     required IconData icon,
     required String title,
@@ -910,13 +482,19 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             value,
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: color, fontSize: 13, fontWeight: FontWeight.bold),
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 5),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10.5,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -925,42 +503,37 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
-  Widget _buildBottomCards(
-      String pump, String mode, Telemetry? telemetry, bool isMobile) {
+  Widget _buildBottomCards(Telemetry? telemetry, bool isMobile) {
     final lastSeenText =
         telemetry == null ? "No data" : _formatLastSeen(telemetry.lastSeen);
-    final freshness =
-        telemetry == null ? "Unknown" : _freshnessLabel(telemetry.lastSeen);
 
     final List<Widget> cards = [
       _buildMiniCard(
-        icon: Icons.water_drop,
-        title: "Irrigation",
-        value: pump,
-        subtitle: pump == "ON" ? "Running" : "Stopped",
-        color: _pumpColor(pump),
+        icon: Icons.memory,
+        title: "Device",
+        value: widget.device.type,
+        subtitle: widget.device.status,
+        color: _statusColor(widget.device.status),
       ),
       _buildMiniCard(
         icon: Icons.event,
-        title: "Last Watered",
+        title: "Last Updated",
         value: telemetry == null ? "--" : _timeAgo(telemetry.lastSeen),
         subtitle: telemetry == null ? "--" : lastSeenText,
         color: const Color(0xFF7AB6FF),
       ),
       _buildMiniCard(
-        icon: Icons.access_time,
-        title: "Mode",
-        value: mode,
-        subtitle: freshness,
-        color: _modeColor(mode),
+        icon: Icons.location_on,
+        title: "Zone",
+        value: widget.device.zoneId,
+        subtitle: "Assigned Zone",
+        color: const Color(0xFFFFB347),
       ),
       _buildMiniCard(
-        icon: Icons.water,
-        title: "Water Usage",
-        value: telemetry == null
-            ? "--"
-            : "${(telemetry.soilMoisture * 2.8).round()} L",
-        subtitle: "Today",
+        icon: Icons.agriculture,
+        title: "Farm",
+        value: widget.device.farmId,
+        subtitle: "Assigned Farm",
         color: const Color(0xFF49D0FF),
       ),
     ];
@@ -1009,7 +582,10 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(color: color ?? Colors.white, fontSize: 12.5),
+              style: TextStyle(
+                color: color ?? Colors.white,
+                fontSize: 12.5,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1046,12 +622,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   Widget _buildContent({
     required Device device,
     required Telemetry? telemetry,
-    required String pump,
-    required String mode,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 900;
         final isMobile = constraints.maxWidth < 700;
 
         return ListView(
@@ -1061,31 +634,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             const SizedBox(height: 16),
             _buildHeader(device, telemetry),
             const SizedBox(height: 16),
-            _buildHealthCard(telemetry),
-            const SizedBox(height: 16),
             _buildMetricsRow(telemetry, isMobile),
             const SizedBox(height: 16),
-            if (isWide)
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(flex: 3, child: _buildSoilMoistureCard(telemetry)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        flex: 2,
-                        child:
-                            _buildControlButtons(pump, mode, fillHeight: true)),
-                  ],
-                ),
-              )
-            else ...[
-              _buildSoilMoistureCard(telemetry),
-              const SizedBox(height: 16),
-              _buildControlButtons(pump, mode),
-            ],
+            _buildSoilMoistureCard(telemetry),
             const SizedBox(height: 16),
-            _buildBottomCards(pump, mode, telemetry, isMobile),
+            _buildBottomCards(telemetry, isMobile),
             const SizedBox(height: 16),
             _buildDeviceInfo(device),
           ],
@@ -1129,47 +682,20 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                 );
               }
 
-              return StreamBuilder<Map<String, dynamic>?>(
-                stream: _firebaseService.getCommandStream(device.id),
-                builder: (context, commandSnapshot) {
-                  if (commandSnapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          "Error loading command state:\n${commandSnapshot.error}",
-                          style: const TextStyle(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    );
-                  }
+              final telemetry = telemetrySnapshot.data;
+              final telemetryWaiting = telemetrySnapshot.connectionState ==
+                      ConnectionState.waiting &&
+                  telemetry == null;
 
-                  final telemetry = telemetrySnapshot.data;
-                  final commandData = commandSnapshot.data;
-                  final pump = (commandData?["pump"] ?? "UNKNOWN").toString();
-                  final mode = (commandData?["mode"] ?? "UNKNOWN").toString();
+              if (telemetryWaiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
 
-                  final telemetryWaiting = telemetrySnapshot.connectionState ==
-                          ConnectionState.waiting &&
-                      telemetry == null;
-                  final commandWaiting = commandSnapshot.connectionState ==
-                          ConnectionState.waiting &&
-                      commandData == null;
-
-                  if (telemetryWaiting || commandWaiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  }
-
-                  return _buildContent(
-                    device: device,
-                    telemetry: telemetry,
-                    pump: pump,
-                    mode: mode,
-                  );
-                },
+              return _buildContent(
+                device: device,
+                telemetry: telemetry,
               );
             },
           ),
