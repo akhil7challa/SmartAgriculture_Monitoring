@@ -94,6 +94,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
 
   Future<void> _setPumpForZone(String command) async {
     if (_devices.isEmpty) return;
+    if (_zoneMode.toUpperCase() == "AUTO") return;
 
     setState(() {
       _isApplyingPump = true;
@@ -528,6 +529,8 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     required VoidCallback? onTap,
     bool loading = false,
   }) {
+    final bool isDisabled = onTap == null && !loading;
+
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: loading ? null : onTap,
@@ -537,14 +540,19 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color:
-              selected ? selectedColor.withOpacity(0.18) : Colors.transparent,
+          color: isDisabled
+              ? Colors.white.withOpacity(0.03)
+              : selected
+                  ? selectedColor.withOpacity(0.18)
+                  : Colors.transparent,
           border: Border.all(
-            color: selected
-                ? selectedColor.withOpacity(0.35)
-                : Colors.white.withOpacity(0.04),
+            color: isDisabled
+                ? Colors.white.withOpacity(0.03)
+                : selected
+                    ? selectedColor.withOpacity(0.35)
+                    : Colors.white.withOpacity(0.04),
           ),
-          boxShadow: selected
+          boxShadow: selected && !isDisabled
               ? [
                   BoxShadow(
                     color: selectedColor.withOpacity(0.18),
@@ -570,14 +578,22 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
             else
               Icon(
                 icon,
-                color: selected ? selectedColor : Colors.white70,
+                color: isDisabled
+                    ? Colors.white30
+                    : selected
+                        ? selectedColor
+                        : Colors.white70,
                 size: 18,
               ),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                color: selected ? selectedColor : Colors.white,
+                color: isDisabled
+                    ? Colors.white30
+                    : selected
+                        ? selectedColor
+                        : Colors.white,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
@@ -594,8 +610,8 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     required String selectedValue,
     required Color leftColor,
     required Color rightColor,
-    required VoidCallback onLeftTap,
-    required VoidCallback onRightTap,
+    required VoidCallback? onLeftTap,
+    required VoidCallback? onRightTap,
     required IconData leftIcon,
     required IconData rightIcon,
     bool loading = false,
@@ -636,6 +652,9 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   }
 
   Widget _buildControlsCard() {
+    final bool isPumpControlDisabled =
+        _zoneMode.toUpperCase() == "AUTO" || _isApplyingMode;
+
     return _glassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -659,14 +678,27 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
           const SizedBox(height: 18),
           _controlSectionLabel("Pump Control"),
           const SizedBox(height: 10),
+          if (isPumpControlDisabled)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                "Pump control is disabled in AUTO mode",
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                ),
+              ),
+            ),
           _buildSegmentedToggle(
             leftLabel: "ON",
             rightLabel: "OFF",
             selectedValue: _zonePump.toUpperCase() == "ON" ? "ON" : "OFF",
             leftColor: const Color(0xFF2BCB5A),
             rightColor: const Color(0xFFFF6B57),
-            onLeftTap: () => _setPumpForZone("ON"),
-            onRightTap: () => _setPumpForZone("OFF"),
+            onLeftTap:
+                isPumpControlDisabled ? null : () => _setPumpForZone("ON"),
+            onRightTap:
+                isPumpControlDisabled ? null : () => _setPumpForZone("OFF"),
             leftIcon: Icons.play_arrow_rounded,
             rightIcon: Icons.stop_rounded,
             loading: _isApplyingPump,
