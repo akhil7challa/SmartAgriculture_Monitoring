@@ -329,6 +329,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     required String title,
     required Color color,
     required List<double> values,
+    required List<DateTime> timestamps,
   }) {
     final spots = values.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value);
@@ -341,22 +342,14 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final adjustedMinY = maxY == minY ? minY - 1 : minY;
 
     return _glassPanel(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       radius: BorderRadius.circular(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           SizedBox(
-            height: 150,
+            height: 260,
             child: values.isEmpty
                 ? const Center(
                     child: Text(
@@ -370,6 +363,39 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                       maxX: (values.length - 1).toDouble(),
                       minY: adjustedMinY,
                       maxY: adjustedMaxY,
+
+                      // ADD THIS BLOCK
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipItems: (touchedSpots) {
+                            return touchedSpots.map((spot) {
+                              final index = spot.x.toInt();
+
+                              if (index >= timestamps.length) {
+                                return null;
+                              }
+
+                              final time = timestamps[index];
+
+                              final date =
+                                  "${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}";
+
+                              final clock =
+                                  "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+
+                              return LineTooltipItem(
+                                "${spot.y.toStringAsFixed(1)}\n$date $clock",
+                                const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              );
+                            }).toList();
+                          },
+                        ),
+                      ),
+
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
@@ -378,25 +404,67 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           strokeWidth: 1,
                         ),
                       ),
-                      titlesData: const FlTitlesData(
-                        leftTitles: AxisTitles(
+
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 40,
+                            interval: (adjustedMaxY - adjustedMinY) / 5,
+                            getTitlesWidget: (value, meta) {
+                              return Text(
+                                value.toStringAsFixed(0),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        topTitles: AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        rightTitles: AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 35,
+                            interval: (values.length / 4)
+                                .clamp(1, values.length)
+                                .toDouble(),
+                            getTitlesWidget: (value, meta) {
+                              int index = value.toInt();
+
+                              if (index >= timestamps.length) {
+                                return const SizedBox();
+                              }
+
+                              final time = timestamps[index];
+
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  "${time.hour}:${time.minute.toString().padLeft(2, '0')}",
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
+
                       borderData: FlBorderData(
                         show: true,
                         border:
                             Border.all(color: Colors.white.withOpacity(0.08)),
                       ),
+
                       lineBarsData: [
                         LineChartBarData(
                           spots: spots,
@@ -444,6 +512,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         history.map((e) => e.temperature.toDouble()).toList();
     final humidityValues = history.map((e) => e.humidity.toDouble()).toList();
     final soilValues = history.map((e) => e.soilMoisture.toDouble()).toList();
+    final timestamps = history
+        .map((e) => DateTime.fromMillisecondsSinceEpoch(e.lastSeen * 1000))
+        .toList();
 
     final temperatureSection = _buildMetricWithChart(
       metricCard: _buildArcMetricCard(
@@ -459,6 +530,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         title: "Temperature Trend",
         color: const Color(0xFFFF8A2A),
         values: temperatureValues,
+        timestamps: timestamps,
       ),
     );
 
@@ -476,6 +548,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         title: "Humidity Trend",
         color: const Color(0xFF42B7FF),
         values: humidityValues,
+        timestamps: timestamps,
       ),
     );
 
@@ -495,6 +568,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             ? const Color(0xFFFFB347)
             : const Color(0xFF7CFC6A),
         values: soilValues,
+        timestamps: timestamps,
       ),
     );
 
