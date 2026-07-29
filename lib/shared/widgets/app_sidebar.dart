@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
 class AppSidebar extends StatelessWidget {
-  final Function(int) onItemSelected;
+  final int selectedIndex;
+  final ValueChanged<int> onItemSelected;
 
-  const AppSidebar({super.key, required this.onItemSelected});
+  const AppSidebar({
+    super.key,
+    required this.selectedIndex,
+    required this.onItemSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +39,27 @@ class AppSidebar extends StatelessWidget {
   }
 
   Widget menuItem(IconData icon, String title, int index) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      onTap: () {
-        onItemSelected(index);
-      },
+    final bool isSelected = selectedIndex == index;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.white.withOpacity(0.18) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: Colors.white,
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(color: Colors.white),
+        ),
+        onTap: () {
+          onItemSelected(index);
+        },
+      ),
     );
   }
 }

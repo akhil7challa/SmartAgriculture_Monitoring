@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/services/firebase_service.dart';
 import '../../models/farm.dart';
 import '../../models/zone.dart';
-import '../zones/zone_details_screen.dart';
 
 class FarmDetailsScreen extends StatefulWidget {
   final Farm farm;
@@ -38,7 +38,15 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.farm.name)),
+      appBar: AppBar(
+        title: Text(widget.farm.name),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            context.go('/farms');
+          },
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -59,7 +67,11 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                   ),
                   const SizedBox(height: 12),
                   if (_zones.isEmpty)
-                    const Card(child: ListTile(title: Text("No zones found")))
+                    const Card(
+                      child: ListTile(
+                        title: Text("No zones found"),
+                      ),
+                    )
                   else
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -79,11 +91,11 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                           itemCount: _zones.length,
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 1.8,
-                              ),
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.8,
+                          ),
                           itemBuilder: (context, index) {
                             final zone = _zones[index];
 
@@ -92,14 +104,8 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(12),
                                 onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ZoneDetailsScreen(
-                                        farm: widget.farm,
-                                        zone: zone,
-                                      ),
-                                    ),
+                                  context.go(
+                                    '/farms/${widget.farm.id}/zones/${zone.id}',
                                   );
                                 },
                                 child: Padding(

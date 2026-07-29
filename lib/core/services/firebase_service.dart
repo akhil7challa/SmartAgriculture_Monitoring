@@ -28,6 +28,19 @@ class FirebaseService {
         .toList();
   }
 
+  Future<Farm?> getFarmById(String farmId) async {
+    final snapshot = await farmsRef.child(farmId).get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    return Farm.fromMap(
+      farmId,
+      Map<dynamic, dynamic>.from(snapshot.value as Map),
+    );
+  }
+
   Future<List<Device>> getAllDevices() async {
     final snapshot = await devicesRef.get();
 
@@ -41,6 +54,19 @@ class FirebaseService {
     return data.entries
         .map((entry) => Device.fromMap(entry.key, entry.value))
         .toList();
+  }
+
+  Future<Device?> getDeviceById(String deviceId) async {
+    final snapshot = await devicesRef.child(deviceId).get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    return Device.fromMap(
+      deviceId,
+      Map<dynamic, dynamic>.from(snapshot.value as Map),
+    );
   }
 
   Future<Telemetry?> getTelemetry(String deviceId) async {
@@ -124,6 +150,20 @@ class FirebaseService {
     return data.entries
         .map((entry) => Zone.fromMap(entry.key, entry.value))
         .toList();
+  }
+
+  Future<Zone?> getZoneById(String farmId, String zoneId) async {
+    final snapshot =
+        await farmsRef.child(farmId).child("zones").child(zoneId).get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    return Zone.fromMap(
+      zoneId,
+      Map<dynamic, dynamic>.from(snapshot.value as Map),
+    );
   }
 
   Future<List<Device>> getDevicesByFarm(String farmId) async {

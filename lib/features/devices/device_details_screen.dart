@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/services/firebase_service.dart';
 import '../../models/device.dart';
@@ -163,7 +164,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     return Row(
       children: [
         IconButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            context.go(
+              '/farms/${widget.device.farmId}/zones/${widget.device.zoneId}',
+            );
+          },
           icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
         const Expanded(
@@ -363,8 +368,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                       maxX: (values.length - 1).toDouble(),
                       minY: adjustedMinY,
                       maxY: adjustedMaxY,
-
-                      // ADD THIS BLOCK
                       lineTouchData: LineTouchData(
                         touchTooltipData: LineTouchTooltipData(
                           getTooltipItems: (touchedSpots) {
@@ -395,7 +398,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           },
                         ),
                       ),
-
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: false,
@@ -404,7 +406,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           strokeWidth: 1,
                         ),
                       ),
-
                       titlesData: FlTitlesData(
                         topTitles: const AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
@@ -458,13 +459,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           ),
                         ),
                       ),
-
                       borderData: FlBorderData(
                         show: true,
                         border:
                             Border.all(color: Colors.white.withOpacity(0.08)),
                       ),
-
                       lineBarsData: [
                         LineChartBarData(
                           spots: spots,

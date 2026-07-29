@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/services/firebase_service.dart';
 import '../../models/device.dart';
 import '../../models/farm.dart';
 import '../../models/telemetry.dart';
 import '../../models/zone.dart';
-import '../devices/device_details_screen.dart';
 
 class ZoneDetailsScreen extends StatefulWidget {
   final Farm farm;
@@ -752,11 +752,8 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DeviceDetailsScreen(device: device),
-                    ),
+                  context.go(
+                    '/farms/${widget.farm.id}/zones/${widget.zone.id}/devices/${device.id}',
                   );
                 },
                 child: Padding(
