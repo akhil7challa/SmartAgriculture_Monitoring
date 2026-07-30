@@ -753,6 +753,20 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
 
     final List<Widget> cards = [
       _buildMiniCard(
+        icon: Icons.agriculture,
+        title: "Farm",
+        value: widget.device.farmId,
+        subtitle: "Assigned Farm",
+        color: const Color(0xFF49D0FF),
+      ),
+      _buildMiniCard(
+        icon: Icons.location_on,
+        title: "Zone",
+        value: widget.device.zoneId,
+        subtitle: "Assigned Zone",
+        color: const Color(0xFFFFB347),
+      ),
+      _buildMiniCard(
         icon: Icons.memory,
         title: "Device",
         value: widget.device.type,
@@ -765,20 +779,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         value: telemetry == null ? "--" : _timeAgo(telemetry.lastSeen),
         subtitle: telemetry == null ? "--" : lastSeenText,
         color: const Color(0xFF7AB6FF),
-      ),
-      _buildMiniCard(
-        icon: Icons.location_on,
-        title: "Zone",
-        value: widget.device.zoneId,
-        subtitle: "Assigned Zone",
-        color: const Color(0xFFFFB347),
-      ),
-      _buildMiniCard(
-        icon: Icons.agriculture,
-        title: "Farm",
-        value: widget.device.farmId,
-        subtitle: "Assigned Farm",
-        color: const Color(0xFF49D0FF),
       ),
     ];
 
@@ -884,8 +884,6 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             _buildMetricSections(telemetry, history, isMobile),
             const SizedBox(height: 16),
             _buildBottomCards(telemetry, isMobile),
-            const SizedBox(height: 16),
-            _buildDeviceInfo(device),
           ],
         );
       },
