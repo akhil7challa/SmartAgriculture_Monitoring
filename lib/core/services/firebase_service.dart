@@ -251,4 +251,88 @@ class FirebaseService {
       await historyRef.child(item["key"].toString()).remove();
     }
   }
+
+  Future<void> saveZonePumpSchedule(
+    String farmId,
+    String zoneId,
+    Map<String, dynamic> schedule,
+  ) async {
+    final cleanedSchedule = Map<String, dynamic>.from(schedule);
+    cleanedSchedule.remove("turnOffAfterDuration");
+
+    await farmsRef
+        .child(farmId)
+        .child("zones")
+        .child(zoneId)
+        .child("pumpSchedule")
+        .set(cleanedSchedule);
+  }
+
+  Future<Map<String, dynamic>?> getZonePumpSchedule(
+    String farmId,
+    String zoneId,
+  ) async {
+    final snapshot = await farmsRef
+        .child(farmId)
+        .child("zones")
+        .child(zoneId)
+        .child("pumpSchedule")
+        .get();
+
+    if (!snapshot.exists || snapshot.value == null) {
+      return null;
+    }
+
+    final schedule = Map<String, dynamic>.from(snapshot.value as Map);
+    schedule.remove("turnOffAfterDuration");
+    return schedule;
+  }
+
+  Future<void> deleteZonePumpSchedule(
+    String farmId,
+    String zoneId,
+  ) async {
+    await farmsRef
+        .child(farmId)
+        .child("zones")
+        .child(zoneId)
+        .child("pumpSchedule")
+        .remove();
+  }
+
+  Stream<Map<String, dynamic>?> getZonePumpScheduleStream(
+    String farmId,
+    String zoneId,
+  ) {
+    return farmsRef
+        .child(farmId)
+        .child("zones")
+        .child(zoneId)
+        .child("pumpSchedule")
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value;
+
+      if (data == null) {
+        return null;
+      }
+
+      final schedule = Map<String, dynamic>.from(data as Map);
+      schedule.remove("turnOffAfterDuration");
+      return schedule;
+    });
+  }
+
+  Future<void> removeLegacyTurnOffAfterDuration(
+    String farmId,
+    String zoneId,
+  ) async {
+    await farmsRef
+        .child(farmId)
+        .child("zones")
+        .child(zoneId)
+        .child("pumpSchedule")
+        .child("turnOffAfterDuration")
+        .remove();
+  }
 }

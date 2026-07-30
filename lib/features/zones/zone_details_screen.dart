@@ -13,7 +13,11 @@ class ZoneDetailsScreen extends StatefulWidget {
   final Farm farm;
   final Zone zone;
 
-  const ZoneDetailsScreen({super.key, required this.farm, required this.zone});
+  const ZoneDetailsScreen({
+    super.key,
+    required this.farm,
+    required this.zone,
+  });
 
   @override
   State<ZoneDetailsScreen> createState() => _ZoneDetailsScreenState();
@@ -29,14 +33,21 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   bool _isLoading = true;
   bool _isApplyingPump = false;
   bool _isApplyingMode = false;
+  bool _isSavingSchedule = false;
+  bool _isStartingNow = false;
 
   String _zonePump = "UNKNOWN";
   String _zoneMode = "UNKNOWN";
+
+  TimeOfDay? _startTime;
+  Duration _pumpOnDuration = const Duration(minutes: 15);
+  bool _repeatDaily = false;
 
   @override
   void initState() {
     super.initState();
     _loadDevicesAndSubscribe();
+    _loadSchedule();
   }
 
   @override
@@ -89,6 +100,38 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
       );
 
       _telemetrySubscriptions.add(sub);
+    }
+  }
+
+  Future<void> _loadSchedule() async {
+    try {
+      final schedule = await _firebaseService.getZonePumpSchedule(
+        widget.farm.id,
+        widget.zone.id,
+      );
+
+      if (!mounted || schedule == null) return;
+
+      final int? startHour = schedule['startHour'] as int?;
+      final int? startMinute = schedule['startMinute'] as int?;
+      final int? onMinutes = schedule['onMinutes'] as int?;
+      final bool? repeatDaily = schedule['repeatDaily'] as bool?;
+      final String? mode = schedule['mode'] as String?;
+
+      setState(() {
+        if (startHour != null && startMinute != null) {
+          _startTime = TimeOfDay(hour: startHour, minute: startMinute);
+        }
+        if (onMinutes != null) {
+          _pumpOnDuration = Duration(minutes: onMinutes);
+        }
+        _repeatDaily = repeatDaily ?? false;
+        if (mode != null && mode.isNotEmpty) {
+          _zoneMode = mode;
+        }
+      });
+    } catch (_) {
+      // ignore schedule load errors for now
     }
   }
 
@@ -159,6 +202,185 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
         _isApplyingMode = false;
       });
     }
+  }
+
+  Future<void> _startPumpNow() async {
+    if (_devices.isEmpty) return;
+    if (_zoneMode.toUpperCase() != "MANUAL") return;
+
+    setState(() {
+      _isStartingNow = true;
+    });
+
+    try {
+      await Future.wait(
+        _devices.map((device) {
+          return _firebaseService.setPumpCommand(device.id, "ON");
+        }),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _zonePump = "ON";
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Pump started for all devices in this zone"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isStartingNow = false;
+      });
+    }
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime ?? TimeOfDay.now(),
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        _startTime = picked;
+      });
+    }
+  }
+
+  Future<void> _pickOnDuration() async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: const Color(0xFF0D1B2A),
+      builder: (context) {
+        final options = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final minutes = options[index];
+                return ListTile(
+                  leading: const Icon(Icons.schedule, color: Colors.white70),
+                  title: Text(
+                    "$minutes minutes",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  onTap: () => Navigator.pop(context, minutes),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      setState(() {
+        _pumpOnDuration = Duration(minutes: selected);
+      });
+    }
+  }
+
+  Future<void> _saveManualSchedule() async {
+    if (_zoneMode.toUpperCase() != "MANUAL") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Switch to MANUAL mode first"),
+        ),
+      );
+      return;
+    }
+
+    if (_startTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please select a start time"),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSavingSchedule = true;
+    });
+
+    try {
+      final schedule = {
+        "mode": "MANUAL",
+        "startHour": _startTime!.hour,
+        "startMinute": _startTime!.minute,
+        "onMinutes": _pumpOnDuration.inMinutes,
+        "repeatDaily": _repeatDaily,
+        "farmId": widget.farm.id,
+        "zoneId": widget.zone.id,
+        "updatedAt": DateTime.now().millisecondsSinceEpoch,
+      };
+
+      await _firebaseService.saveZonePumpSchedule(
+        widget.farm.id,
+        widget.zone.id,
+        schedule,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Manual schedule saved successfully"),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSavingSchedule = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    if (duration.inHours > 0 && duration.inMinutes % 60 != 0) {
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes % 60;
+      return "${hours}h ${minutes}m";
+    }
+    if (duration.inHours > 0 && duration.inMinutes % 60 == 0) {
+      return "${duration.inHours} hour${duration.inHours > 1 ? 's' : ''}";
+    }
+    return "${duration.inMinutes} minutes";
+  }
+
+  String _nextWateringText() {
+    if (_startTime == null) return "Not scheduled";
+
+    final now = DateTime.now();
+    DateTime next = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+
+    if (next.isBefore(now)) {
+      next = next.add(const Duration(days: 1));
+    }
+
+    final dayLabel = next.day == now.day ? "Today" : "Tomorrow";
+
+    final localizations = MaterialLocalizations.of(context);
+    final timeLabel = localizations.formatTimeOfDay(
+      TimeOfDay(hour: next.hour, minute: next.minute),
+    );
+
+    return "$dayLabel, $timeLabel";
   }
 
   double _averageTemperature() {
@@ -651,6 +873,209 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     );
   }
 
+  Widget _scheduleTile({
+    required String title,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white70),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF6EA8FF),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualScheduleCard() {
+    final localizations = MaterialLocalizations.of(context);
+
+    return _glassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Schedule Watering",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Set when the pump should start and how long it should stay ON",
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _scheduleTile(
+            title: "Start Time",
+            value: _startTime == null
+                ? "Select"
+                : localizations.formatTimeOfDay(_startTime!),
+            icon: Icons.access_time,
+            onTap: _pickStartTime,
+          ),
+          const SizedBox(height: 10),
+          _scheduleTile(
+            title: "Duration ON",
+            value: _formatDuration(_pumpOnDuration),
+            icon: Icons.play_circle_outline,
+            onTap: _pickOnDuration,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                "Repeat Daily",
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                "Enable this schedule every day",
+                style: TextStyle(color: Colors.white60),
+              ),
+              value: _repeatDaily,
+              onChanged: (value) {
+                setState(() {
+                  _repeatDaily = value;
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.05),
+                  Colors.white.withOpacity(0.02),
+                ],
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Next Watering",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _nextWateringText(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "ON for ${_formatDuration(_pumpOnDuration)} • Then turns OFF until next start time",
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isStartingNow ? null : _startPumpNow,
+                  icon: _isStartingNow
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow_rounded),
+                  label: const Text("Start Now"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSavingSchedule ? null : _saveManualSchedule,
+                  icon: _isSavingSchedule
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text("Save Schedule"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D6FFF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildControlsCard() {
     final bool isPumpControlDisabled =
         _zoneMode.toUpperCase() == "AUTO" || _isApplyingMode;
@@ -674,6 +1099,82 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
               color: Colors.white60,
               fontSize: 12,
             ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _modeColor(_zoneMode).withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _modeColor(_zoneMode).withOpacity(0.35),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.settings_remote,
+                        color: _modeColor(_zoneMode),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Mode",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _zoneMode,
+                        style: TextStyle(
+                          color: _modeColor(_zoneMode),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _pumpColor(_zonePump).withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _pumpColor(_zonePump).withOpacity(0.35),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.water_drop_outlined,
+                        color: _pumpColor(_zonePump),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Pump",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _zonePump,
+                        style: TextStyle(
+                          color: _pumpColor(_zonePump),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
           _controlSectionLabel("Pump Control"),
@@ -727,6 +1228,10 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
               fontSize: 12,
             ),
           ),
+          if (_zoneMode.toUpperCase() == "MANUAL") ...[
+            const SizedBox(height: 18),
+            _buildManualScheduleCard(),
+          ],
         ],
       ),
     );
@@ -861,7 +1366,9 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.zone.name)),
+      appBar: AppBar(
+        title: Text(widget.zone.name),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -874,7 +1381,10 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
                   const SizedBox(height: 24),
                   const Text(
                     "Devices",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildDeviceGrid(),
