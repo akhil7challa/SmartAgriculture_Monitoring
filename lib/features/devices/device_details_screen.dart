@@ -24,6 +24,8 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
   String? _lastCleanupSlotKey;
   bool _cleanupRunning = false;
 
+  GraphPeriod _selectedPeriod = GraphPeriod.day;
+
   @override
   void initState() {
     super.initState();
@@ -137,6 +139,32 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     return "Hot";
   }
 
+  String _periodLabel(GraphPeriod period) {
+    switch (period) {
+      case GraphPeriod.day:
+        return "1D";
+      case GraphPeriod.week:
+        return "1W";
+      case GraphPeriod.month:
+        return "1M";
+      case GraphPeriod.year:
+        return "1Y";
+    }
+  }
+
+  String _formatXAxisLabel(DateTime time) {
+    switch (_selectedPeriod) {
+      case GraphPeriod.day:
+        return "${time.hour}:${time.minute.toString().padLeft(2, '0')}";
+      case GraphPeriod.week:
+        return "${time.day}/${time.month}";
+      case GraphPeriod.month:
+        return "${time.day}/${time.month}";
+      case GraphPeriod.year:
+        return "${time.month}/${time.year}";
+    }
+  }
+
   Widget _glassPanel({
     required Widget child,
     EdgeInsets? padding,
@@ -225,6 +253,45 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildPeriodSelector() {
+    Widget buildChip(GraphPeriod period) {
+      final isSelected = _selectedPeriod == period;
+
+      return ChoiceChip(
+        label: Text(_periodLabel(period)),
+        selected: isSelected,
+        onSelected: (_) {
+          setState(() {
+            _selectedPeriod = period;
+          });
+        },
+        selectedColor: const Color(0xFF42B7FF),
+        backgroundColor: Colors.white.withOpacity(0.08),
+        side: BorderSide(
+          color: isSelected
+              ? const Color(0xFF42B7FF)
+              : Colors.white.withOpacity(0.08),
+        ),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.black : Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        showCheckmark: false,
+      );
+    }
+
+    return _glassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      radius: BorderRadius.circular(18),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: GraphPeriod.values.map(buildChip).toList(),
+      ),
     );
   }
 
@@ -321,9 +388,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             ),
           ),
           const SizedBox(height: 2),
-          const Text(
-            "vs yesterday",
-            style: TextStyle(color: Colors.white54, fontSize: 10),
+          Text(
+            "selected: ${_periodLabel(_selectedPeriod)}",
+            style: const TextStyle(color: Colors.white54, fontSize: 10),
           ),
         ],
       ),
@@ -346,13 +413,25 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final adjustedMaxY = maxY == minY ? maxY + 1 : maxY;
     final adjustedMinY = maxY == minY ? minY - 1 : minY;
 
+    final bottomInterval = values.isEmpty
+        ? 1.0
+        : (values.length / 4).clamp(1, values.length).toDouble();
+
     return _glassPanel(
       padding: const EdgeInsets.all(16),
       radius: BorderRadius.circular(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             height: 260,
             child: values.isEmpty
@@ -374,15 +453,13 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                             return touchedSpots.map((spot) {
                               final index = spot.x.toInt();
 
-                              if (index >= timestamps.length) {
+                              if (index < 0 || index >= timestamps.length) {
                                 return null;
                               }
 
                               final time = timestamps[index];
-
                               final date =
                                   "${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}";
-
                               final clock =
                                   "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
 
@@ -417,7 +494,9 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 40,
-                            interval: (adjustedMaxY - adjustedMinY) / 5,
+                            interval: ((adjustedMaxY - adjustedMinY) / 5) == 0
+                                ? 1
+                                : (adjustedMaxY - adjustedMinY) / 5,
                             getTitlesWidget: (value, meta) {
                               return Text(
                                 value.toStringAsFixed(0),
@@ -433,13 +512,11 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 35,
-                            interval: (values.length / 4)
-                                .clamp(1, values.length)
-                                .toDouble(),
+                            interval: bottomInterval,
                             getTitlesWidget: (value, meta) {
-                              int index = value.toInt();
+                              final index = value.toInt();
 
-                              if (index >= timestamps.length) {
+                              if (index < 0 || index >= timestamps.length) {
                                 return const SizedBox();
                               }
 
@@ -448,11 +525,12 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
                               return Padding(
                                 padding: const EdgeInsets.only(top: 6),
                                 child: Text(
-                                  "${time.hour}:${time.minute.toString().padLeft(2, '0')}",
+                                  _formatXAxisLabel(time),
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 10,
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
                               );
                             },
@@ -498,6 +576,17 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     );
   }
 
+  String _calculateChange(List<double> values, String suffix) {
+    if (values.length < 2) return "--";
+
+    final first = values.first;
+    final last = values.last;
+    final diff = last - first;
+
+    final sign = diff >= 0 ? "+" : "";
+    return "$sign${diff.toStringAsFixed(1)}$suffix";
+  }
+
   Widget _buildMetricSections(
     Telemetry? telemetry,
     List<Telemetry> history,
@@ -507,11 +596,16 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
     final humidity = telemetry?.humidity.toDouble() ?? 0.0;
     final soil = telemetry?.soilMoisture.toDouble() ?? 0.0;
 
+    final sortedHistory = [...history]
+      ..sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
+
     final temperatureValues =
-        history.map((e) => e.temperature.toDouble()).toList();
-    final humidityValues = history.map((e) => e.humidity.toDouble()).toList();
-    final soilValues = history.map((e) => e.soilMoisture.toDouble()).toList();
-    final timestamps = history
+        sortedHistory.map((e) => e.temperature.toDouble()).toList();
+    final humidityValues =
+        sortedHistory.map((e) => e.humidity.toDouble()).toList();
+    final soilValues =
+        sortedHistory.map((e) => e.soilMoisture.toDouble()).toList();
+    final timestamps = sortedHistory
         .map((e) => DateTime.fromMillisecondsSinceEpoch(e.lastSeen * 1000))
         .toList();
 
@@ -522,7 +616,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         percent: temp / 50,
         color: const Color(0xFFFF8A2A),
         badge: _temperatureStatus(temp),
-        change: "+1.2°",
+        change: _calculateChange(temperatureValues, "°"),
         badgeIcon: Icons.check_circle,
       ),
       chart: _buildTrendChart(
@@ -540,7 +634,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         percent: humidity / 100,
         color: const Color(0xFF42B7FF),
         badge: _humidityStatus(humidity),
-        change: "-2%",
+        change: _calculateChange(humidityValues, "%"),
         badgeIcon: Icons.check_circle,
       ),
       chart: _buildTrendChart(
@@ -558,7 +652,7 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
         percent: soil / 100,
         color: soil < 45 ? const Color(0xFFFFB347) : const Color(0xFF9AFB65),
         badge: _soilStatus(soil),
-        change: soil < 45 ? "-5%" : "+3%",
+        change: _calculateChange(soilValues, "%"),
         badgeIcon: soil < 45 ? Icons.warning_amber_rounded : Icons.check_circle,
       ),
       chart: _buildTrendChart(
@@ -785,6 +879,8 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
             const SizedBox(height: 16),
             _buildHeader(device, telemetry),
             const SizedBox(height: 16),
+            _buildPeriodSelector(),
+            const SizedBox(height: 16),
             _buildMetricSections(telemetry, history, isMobile),
             const SizedBox(height: 16),
             _buildBottomCards(telemetry, isMobile),
@@ -832,9 +928,10 @@ class _DeviceDetailsScreenState extends State<DeviceDetailsScreen> {
               }
 
               return StreamBuilder<List<Telemetry>>(
-                stream: _firebaseService.getTelemetryHistoryStream(
+                stream: _firebaseService.getTelemetryHistoryByPeriodStream(
                   device.id,
-                  limit: 1000,
+                  period: _selectedPeriod,
+                  limit: 5000,
                 ),
                 builder: (context, historySnapshot) {
                   if (historySnapshot.hasError) {

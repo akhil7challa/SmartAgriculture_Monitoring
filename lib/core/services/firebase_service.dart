@@ -5,6 +5,13 @@ import '../../models/device.dart';
 import '../../models/telemetry.dart';
 import '../../models/zone.dart';
 
+enum GraphPeriod {
+  day,
+  week,
+  month,
+  year,
+}
+
 class FirebaseService {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
@@ -103,6 +110,74 @@ class FirebaseService {
         .child(deviceId)
         .child("historydata")
         .orderByChild("lastSeen")
+        .limitToLast(limit)
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value;
+
+      if (data == null) {
+        return <Telemetry>[];
+      }
+
+      final Map<dynamic, dynamic> map = Map<dynamic, dynamic>.from(data as Map);
+
+      final list = map.entries.map((entry) {
+        final value = Map<dynamic, dynamic>.from(entry.value as Map);
+
+        if (!value.containsKey("lastSeen") && value.containsKey("lastseen")) {
+          value["lastSeen"] = value["lastseen"];
+        }
+
+        return Telemetry.fromMap(value);
+      }).toList();
+
+      list.sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
+      return list;
+    });
+  }
+
+  DateTime getStartDateForPeriod(GraphPeriod period) {
+    final now = DateTime.now();
+
+    switch (period) {
+      case GraphPeriod.day:
+        return now.subtract(const Duration(days: 1));
+      case GraphPeriod.week:
+        return now.subtract(const Duration(days: 7));
+      case GraphPeriod.month:
+        return DateTime(
+          now.year,
+          now.month - 1,
+          now.day,
+          now.hour,
+          now.minute,
+          now.second,
+        );
+      case GraphPeriod.year:
+        return DateTime(
+          now.year - 1,
+          now.month,
+          now.day,
+          now.hour,
+          now.minute,
+          now.second,
+        );
+    }
+  }
+
+  Stream<List<Telemetry>> getTelemetryHistoryByPeriodStream(
+    String deviceId, {
+    required GraphPeriod period,
+    int limit = 5000,
+  }) {
+    final startDate = getStartDateForPeriod(period);
+    final startTimestamp = startDate.millisecondsSinceEpoch ~/ 1000;
+
+    return telemetryRef
+        .child(deviceId)
+        .child("historydata")
+        .orderByChild("lastSeen")
+        .startAt(startTimestamp)
         .limitToLast(limit)
         .onValue
         .map((event) {
