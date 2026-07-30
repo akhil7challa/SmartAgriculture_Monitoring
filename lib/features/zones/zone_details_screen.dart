@@ -204,6 +204,14 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     }
   }
 
+  Future<void> _toggleMode(bool isManual) async {
+    await _setModeForZone(isManual ? "MANUAL" : "AUTO");
+  }
+
+  Future<void> _togglePump(bool isOn) async {
+    await _setPumpForZone(isOn ? "ON" : "OFF");
+  }
+
   Future<void> _startPumpNow() async {
     if (_devices.isEmpty) return;
     if (_zoneMode.toUpperCase() != "MANUAL") return;
@@ -479,22 +487,11 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   Color _pumpColor(String pumpStatus) {
     switch (pumpStatus.toUpperCase()) {
       case 'ON':
-        return const Color(0xFF59E36A);
+        return const Color(0xFF4CD964);
       case 'OFF':
-        return Colors.grey;
+        return const Color(0xFF8B94A3);
       default:
-        return Colors.blueGrey;
-    }
-  }
-
-  Color _modeColor(String mode) {
-    switch (mode.toUpperCase()) {
-      case 'AUTO':
-        return const Color(0xFF4DB3FF);
-      case 'MANUAL':
-        return const Color(0xFFFFB347);
-      default:
-        return Colors.grey;
+        return const Color(0xFF5B6B7A);
     }
   }
 
@@ -504,6 +501,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     BorderRadius? radius,
   }) {
     return Container(
+      width: double.infinity,
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF071A33).withOpacity(0.88),
@@ -523,6 +521,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
 
   Widget _greenHealthPanel({required Widget child}) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -731,145 +730,181 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     );
   }
 
-  Widget _controlSectionLabel(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: Colors.white70,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
-      ),
-    );
-  }
-
-  Widget _segmentButton({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required Color selectedColor,
-    required VoidCallback? onTap,
-    bool loading = false,
-  }) {
-    final bool isDisabled = onTap == null && !loading;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: loading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: isDisabled
-              ? Colors.white.withOpacity(0.03)
-              : selected
-                  ? selectedColor.withOpacity(0.18)
-                  : Colors.transparent,
-          border: Border.all(
-            color: isDisabled
-                ? Colors.white.withOpacity(0.03)
-                : selected
-                    ? selectedColor.withOpacity(0.35)
-                    : Colors.white.withOpacity(0.04),
-          ),
-          boxShadow: selected && !isDisabled
-              ? [
-                  BoxShadow(
-                    color: selectedColor.withOpacity(0.18),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Column(
-          children: [
-            if (loading)
-              SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(
-                    selected ? selectedColor : Colors.white70,
-                  ),
-                ),
-              )
-            else
-              Icon(
-                icon,
-                color: isDisabled
-                    ? Colors.white30
-                    : selected
-                        ? selectedColor
-                        : Colors.white70,
-                size: 18,
-              ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isDisabled
-                    ? Colors.white30
-                    : selected
-                        ? selectedColor
-                        : Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSegmentedToggle({
-    required String leftLabel,
-    required String rightLabel,
-    required String selectedValue,
-    required Color leftColor,
-    required Color rightColor,
-    required VoidCallback? onLeftTap,
-    required VoidCallback? onRightTap,
-    required IconData leftIcon,
-    required IconData rightIcon,
-    bool loading = false,
+  Widget _buildInfoChip({
+    required String text,
+    required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.25)),
       ),
-      child: Row(
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInlineControlSection({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required String status,
+    required bool switchValue,
+    required ValueChanged<bool>? onChanged,
+    required bool loading,
+  }) {
+    final bool disabled = onChanged == null && !loading;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.025),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: _segmentButton(
-              label: leftLabel,
-              icon: leftIcon,
-              selected: selectedValue == leftLabel,
-              selectedColor: leftColor,
-              onTap: onLeftTap,
-              loading: loading && selectedValue == leftLabel,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: disabled
+                      ? Colors.white.withOpacity(0.05)
+                      : iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  color: disabled ? Colors.white38 : iconColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: disabled ? Colors.white54 : Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (loading)
+                const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Switch(
+                      value: switchValue,
+                      onChanged: onChanged,
+                      activeColor: iconColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _segmentButton(
-              label: rightLabel,
-              icon: rightIcon,
-              selected: selectedValue == rightLabel,
-              selectedColor: rightColor,
-              onTap: onRightTap,
-              loading: loading && selectedValue == rightLabel,
-            ),
+          const SizedBox(height: 8),
+          _buildInfoChip(
+            text: status,
+            color: disabled ? Colors.white38 : iconColor,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildControlsHeader() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            "Controls",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        _buildInfoChip(
+          text: "${_devices.length} devices",
+          color: const Color(0xFF6EA8FF),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIntegratedControlsRow() {
+    final isManual = _zoneMode.toUpperCase() == "MANUAL";
+    final isPumpOn = _zonePump.toUpperCase() == "ON";
+    final isPumpDisabled = _zoneMode.toUpperCase() == "AUTO" || _isApplyingMode;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth > 700;
+
+        final modeSection = _buildInlineControlSection(
+          title: "Mode",
+          icon: Icons.settings_remote,
+          iconColor:
+              isManual ? const Color(0xFFFFB347) : const Color(0xFF4DB3FF),
+          status: isManual ? "Manual" : "Automatic",
+          switchValue: isManual,
+          onChanged: _isApplyingMode ? null : _toggleMode,
+          loading: _isApplyingMode,
+        );
+
+        final pumpSection = _buildInlineControlSection(
+          title: "Pump",
+          icon: Icons.water_drop_outlined,
+          iconColor: _pumpColor(_zonePump),
+          status: isPumpOn ? "Running" : "Stopped",
+          switchValue: isPumpOn,
+          onChanged: isPumpDisabled ? null : _togglePump,
+          loading: _isApplyingPump,
+        );
+
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: modeSection),
+              const SizedBox(width: 12),
+              Expanded(child: pumpSection),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            modeSection,
+            const SizedBox(height: 12),
+            pumpSection,
+          ],
+        );
+      },
     );
   }
 
@@ -920,7 +955,14 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   Widget _buildManualScheduleCard() {
     final localizations = MaterialLocalizations.of(context);
 
-    return _glassPanel(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.025),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -928,19 +970,19 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
             "Schedule Watering",
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
-            "Set when the pump should start and how long it should stay ON",
+            "Set when the pump should start and how long it should stay running",
             style: TextStyle(
               color: Colors.white60,
               fontSize: 12,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           _scheduleTile(
             title: "Start Time",
             value: _startTime == null
@@ -951,7 +993,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
           ),
           const SizedBox(height: 10),
           _scheduleTile(
-            title: "Duration ON",
+            title: "Run Duration",
             value: _formatDuration(_pumpOnDuration),
             icon: Icons.play_circle_outline,
             onTap: _pickOnDuration,
@@ -971,7 +1013,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: const Text(
-                "Enable this schedule every day",
+                "Run this schedule every day",
                 style: TextStyle(color: Colors.white60),
               ),
               value: _repeatDaily,
@@ -1017,7 +1059,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "ON for ${_formatDuration(_pumpOnDuration)} • Then turns OFF until next start time",
+                  "Runs for ${_formatDuration(_pumpOnDuration)} before stopping automatically",
                   style: const TextStyle(
                     color: Colors.white60,
                     fontSize: 12,
@@ -1077,159 +1119,17 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
   }
 
   Widget _buildControlsCard() {
-    final bool isPumpControlDisabled =
-        _zoneMode.toUpperCase() == "AUTO" || _isApplyingMode;
-
     return _glassPanel(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            "Controls",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            "Apply commands to all devices in this zone",
-            style: TextStyle(
-              color: Colors.white60,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _modeColor(_zoneMode).withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _modeColor(_zoneMode).withOpacity(0.35),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.settings_remote,
-                        color: _modeColor(_zoneMode),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        "Mode",
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      const Spacer(),
-                      Text(
-                        _zoneMode,
-                        style: TextStyle(
-                          color: _modeColor(_zoneMode),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _pumpColor(_zonePump).withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _pumpColor(_zonePump).withOpacity(0.35),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.water_drop_outlined,
-                        color: _pumpColor(_zonePump),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        "Pump",
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      const Spacer(),
-                      Text(
-                        _zonePump,
-                        style: TextStyle(
-                          color: _pumpColor(_zonePump),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _controlSectionLabel("Pump Control"),
-          const SizedBox(height: 10),
-          if (isPumpControlDisabled)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                "Pump control is disabled in AUTO mode",
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          _buildSegmentedToggle(
-            leftLabel: "ON",
-            rightLabel: "OFF",
-            selectedValue: _zonePump.toUpperCase() == "ON" ? "ON" : "OFF",
-            leftColor: const Color(0xFF2BCB5A),
-            rightColor: const Color(0xFFFF6B57),
-            onLeftTap:
-                isPumpControlDisabled ? null : () => _setPumpForZone("ON"),
-            onRightTap:
-                isPumpControlDisabled ? null : () => _setPumpForZone("OFF"),
-            leftIcon: Icons.play_arrow_rounded,
-            rightIcon: Icons.stop_rounded,
-            loading: _isApplyingPump,
-          ),
-          const SizedBox(height: 18),
-          _controlSectionLabel("Mode Selection"),
-          const SizedBox(height: 10),
-          _buildSegmentedToggle(
-            leftLabel: "AUTO",
-            rightLabel: "MANUAL",
-            selectedValue:
-                _zoneMode.toUpperCase() == "AUTO" ? "AUTO" : "MANUAL",
-            leftColor: const Color(0xFF338DFF),
-            rightColor: const Color(0xFFFFB347),
-            onLeftTap: () => _setModeForZone("AUTO"),
-            onRightTap: () => _setModeForZone("MANUAL"),
-            leftIcon: Icons.autorenew_rounded,
-            rightIcon: Icons.touch_app_rounded,
-            loading: _isApplyingMode,
-          ),
-          const SizedBox(height: 18),
-          Text(
-            "Devices in zone: ${_devices.length}",
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
+          _buildControlsHeader(),
+          const SizedBox(height: 14),
+          _buildIntegratedControlsRow(),
           if (_zoneMode.toUpperCase() == "MANUAL") ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             _buildManualScheduleCard(),
           ],
         ],
@@ -1263,13 +1163,8 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
       builder: (context, constraints) {
         int crossAxisCount = 1;
 
-        if (constraints.maxWidth > 700) {
-          crossAxisCount = 2;
-        }
-
-        if (constraints.maxWidth > 1100) {
-          crossAxisCount = 3;
-        }
+        if (constraints.maxWidth > 700) crossAxisCount = 2;
+        if (constraints.maxWidth > 1100) crossAxisCount = 3;
 
         return GridView.builder(
           shrinkWrap: true,
@@ -1334,29 +1229,58 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
     );
   }
 
-  Widget _buildTopSection() {
+  Widget _buildDevicesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Devices",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildDeviceGrid(),
+      ],
+    );
+  }
+
+  Widget _buildMainContent() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 900;
+        final isWide = constraints.maxWidth > 1100;
 
         if (isWide) {
-          return IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _buildFarmHealthCard()),
-                const SizedBox(width: 16),
-                Expanded(child: _buildControlsCard()),
-              ],
-            ),
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildFarmHealthCard(),
+                    const SizedBox(height: 16),
+                    _buildDevicesSection(),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildControlsCard(),
+              ),
+            ],
           );
         }
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildFarmHealthCard(),
             const SizedBox(height: 16),
             _buildControlsCard(),
+            const SizedBox(height: 24),
+            _buildDevicesSection(),
           ],
         );
       },
@@ -1377,17 +1301,7 @@ class _ZoneDetailsScreenState extends State<ZoneDetailsScreen> {
                 children: [
                   _buildZoneInfoCard(),
                   const SizedBox(height: 24),
-                  _buildTopSection(),
-                  const SizedBox(height: 24),
-                  const Text(
-                    "Devices",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDeviceGrid(),
+                  _buildMainContent(),
                 ],
               ),
             ),
