@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services/firebase_service.dart';
+import '../../core/services/weather_service.dart';
 import '../../models/device.dart';
 import '../../models/farm.dart';
+import '../../models/rain_forecast.dart';
 import '../../models/telemetry.dart';
 import '../../models/zone.dart';
 
@@ -29,8 +31,21 @@ class ZoneDashboardInfo {
   });
 }
 
+class FarmRainInfo {
+  final Farm farm;
+  final RainForecast? forecast;
+  final String? placeName;
+
+  FarmRainInfo({
+    required this.farm,
+    required this.forecast,
+    required this.placeName,
+  });
+}
+
 class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  final WeatherService _weatherService = WeatherService();
 
   bool _isLoading = true;
 
@@ -38,8 +53,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int totalZones = 0;
   int totalDevices = 0;
   int totalScheduledZones = 0;
+  int farmsExpectingRain = 0;
 
   List<ZoneDashboardInfo> zoneInfos = [];
+  List<FarmRainInfo> farmRainInfos = [];
 
   @override
   void initState() {
@@ -47,9 +64,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadDashboardData();
   }
 
+  bool _isRainExpected(RainForecast? forecast) {
+    if (forecast == null) return false;
+    return forecast.chanceOfRain >= 20 || forecast.expectedRainMm > 0;
+  }
+
+  Future<FarmRainInfo> _loadFarmRainInfo(Farm farm) async {
+    final results = await Future.wait<dynamic>([
+      _weatherService.getRainForecast(
+        latitude: farm.latitude,
+        longitude: farm.longitude,
+      ),
+      _weatherService.getPlaceNameFromCoordinates(
+        latitude: farm.latitude,
+        longitude: farm.longitude,
+      ),
+    ]);
+
+    return FarmRainInfo(
+      farm: farm,
+      forecast: results[0] as RainForecast?,
+      placeName: results[1] as String?,
+    );
+  }
+
   Future<void> _loadDashboardData() async {
     try {
       final farms = await _firebaseService.getAllFarms();
+
+      final loadedFarmRainInfos = await Future.wait(
+        farms.map((farm) => _loadFarmRainInfo(farm)),
+      );
+
+      final rainyFarmsCount = loadedFarmRainInfos
+          .where((item) => _isRainExpected(item.forecast))
+          .length;
 
       List<ZoneDashboardInfo> loadedZoneInfos = [];
       int zonesCount = 0;
@@ -61,30 +110,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         zonesCount += zones.length;
 
         for (final zone in zones) {
-          final devices = await _firebaseService.getDevicesByFarmAndZone(
-            farm.id,
-            zone.id,
-          );
+          final results = await Future.wait<dynamic>([
+            _firebaseService.getDevicesByFarmAndZone(farm.id, zone.id),
+            _firebaseService.getZonePumpSchedule(farm.id, zone.id),
+          ]);
+
+          final devices = results[0] as List<Device>;
+          final schedule = results[1] as Map<String, dynamic>?;
 
           devicesCount += devices.length;
-
-          final schedule = await _firebaseService.getZonePumpSchedule(
-            farm.id,
-            zone.id,
-          );
 
           if (schedule != null) {
             scheduledZonesCount++;
           }
 
-          List<Telemetry> telemetryList = [];
+          final telemetryResults = await Future.wait(
+            devices.map((device) => _firebaseService.getTelemetry(device.id)),
+          );
 
-          for (final device in devices) {
-            final telemetry = await _firebaseService.getTelemetry(device.id);
-            if (telemetry != null) {
-              telemetryList.add(telemetry);
-            }
-          }
+          final telemetryList =
+              telemetryResults.whereType<Telemetry>().toList();
 
           loadedZoneInfos.add(
             ZoneDashboardInfo(
@@ -105,6 +150,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         totalZones = zonesCount;
         totalDevices = devicesCount;
         totalScheduledZones = scheduledZonesCount;
+        farmsExpectingRain = rainyFarmsCount;
+        farmRainInfos = loadedFarmRainInfos;
         zoneInfos = loadedZoneInfos;
         _isLoading = false;
       });
@@ -116,6 +163,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  FarmRainInfo? _nextRainFarm() {
+    FarmRainInfo? best;
+    DateTime? bestTime;
+
+    for (final item in farmRainInfos) {
+      final forecast = item.forecast;
+      if (forecast == null) continue;
+      if (!_isRainExpected(forecast)) continue;
+
+      if (bestTime == null || forecast.startTime.isBefore(bestTime)) {
+        bestTime = forecast.startTime;
+        best = item;
+      }
+    }
+
+    return best;
+  }
+
+  String _formatForecastRange(
+    DateTime start,
+    DateTime end,
+    BuildContext context,
+  ) {
+    final localizations = MaterialLocalizations.of(context);
+
+    final startDate = localizations.formatShortDate(start);
+    final startTime = localizations.formatTimeOfDay(
+      TimeOfDay(hour: start.hour, minute: start.minute),
+    );
+
+    final endDate = localizations.formatShortDate(end);
+    final endTime = localizations.formatTimeOfDay(
+      TimeOfDay(hour: end.hour, minute: end.minute),
+    );
+
+    if (start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day) {
+      return "$startDate, $startTime - $endTime";
+    }
+
+    return "$startDate, $startTime - $endDate, $endTime";
   }
 
   DateTime? _nextWateringDateTime(Map<String, dynamic>? schedule) {
@@ -160,7 +251,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _formatNextWatering(
-      Map<String, dynamic>? schedule, BuildContext context) {
+    Map<String, dynamic>? schedule,
+    BuildContext context,
+  ) {
     final next = _nextWateringDateTime(schedule);
     if (next == null) return "Not scheduled";
 
@@ -274,7 +367,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context, constraints) {
         int crossAxisCount = 1;
         if (constraints.maxWidth > 700) crossAxisCount = 2;
-        if (constraints.maxWidth > 1100) crossAxisCount = 4;
+        if (constraints.maxWidth > 1100) crossAxisCount = 3;
+        if (constraints.maxWidth > 1500) crossAxisCount = 5;
 
         return GridView.count(
           crossAxisCount: crossAxisCount,
@@ -307,6 +401,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               value: totalScheduledZones.toString(),
               icon: Icons.schedule_rounded,
               color: const Color(0xFF22D3EE),
+            ),
+            _summaryCard(
+              title: "Rain Expected",
+              value: farmsExpectingRain.toString(),
+              icon: Icons.cloud_rounded,
+              color: const Color(0xFF38BDF8),
             ),
           ],
         );
@@ -346,28 +446,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRainInfoCard() {
+    final nextRain = _nextRainFarm();
+
+    if (nextRain == null || nextRain.forecast == null) {
+      return _highlightCard(
+        title: "Rain Forecast Details",
+        child: const Text(
+          "No rain forecast available for tracked farms",
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    final forecast = nextRain.forecast!;
+
+    return _highlightCard(
+      title: "Rain Forecast Details",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "${forecast.chanceOfRain.toStringAsFixed(0)}% chance of rain",
+            style: const TextStyle(
+              color: Color(0xFF38BDF8),
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 15,
-                ),
+              _metricChip(
+                nextRain.placeName ?? "Unknown area",
+                const Color(0xFF93C5FD),
               ),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                ),
+              _metricChip(
+                "Lat ${nextRain.farm.latitude.toStringAsFixed(2)}, Lon ${nextRain.farm.longitude.toStringAsFixed(2)}",
+                const Color(0xFFCBD5E1),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _infoRow("Farm", nextRain.farm.name),
+          _infoRow("Area", nextRain.placeName ?? "Unknown"),
+          _infoRow(
+            "Rain Window",
+            _formatForecastRange(
+              forecast.startTime,
+              forecast.endTime,
+              context,
+            ),
+          ),
+          _infoRow(
+            "Expected Rain",
+            "${forecast.expectedRainMm.toStringAsFixed(1)} mm",
+          ),
+          _infoRow("Summary", forecast.summary),
         ],
       ),
     );
@@ -405,14 +574,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _infoRow("Farm", nextZone.farm.name),
           _infoRow("Zone", nextZone.zone.name),
           _infoRow("Devices", nextZone.devices.length.toString()),
-          _infoRow(
-            "Duration",
-            _formatDurationMinutes(nextZone.schedule),
-          ),
-          _infoRow(
-            "Mode",
-            (nextZone.schedule?['mode'] ?? 'N/A').toString(),
-          ),
+          _infoRow("Duration", _formatDurationMinutes(nextZone.schedule)),
+          _infoRow("Mode", (nextZone.schedule?['mode'] ?? 'N/A').toString()),
           _infoRow(
             "Health",
             "${_healthStatus(healthScore)} ($healthScore%)",
@@ -514,10 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 14),
         _infoRow("Health", "${_healthStatus(score)} ($score%)"),
         _infoRow("Devices", info.devices.length.toString()),
-        _infoRow(
-          "Next Watering",
-          _formatNextWatering(info.schedule, context),
-        ),
+        _infoRow("Next Watering", _formatNextWatering(info.schedule, context)),
         if (info.telemetryList.isNotEmpty) ...[
           const SizedBox(height: 12),
           Wrap(
@@ -592,7 +752,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 90,
+            width: 110,
             child: Text(
               label,
               style: const TextStyle(
@@ -666,6 +826,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 24),
           _buildTopCards(),
+          const SizedBox(height: 24),
+          _buildRainInfoCard(),
           const SizedBox(height: 24),
           _buildNextWateringHighlight(),
           const SizedBox(height: 24),
