@@ -20,6 +20,13 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
   List<Zone> _zones = [];
   bool _isLoading = true;
 
+  static const Color _bg = Color(0xFF0B1220);
+  static const Color _card = Color(0xFF111827);
+  static const Color _border = Color(0xFF243041);
+  static const Color _textPrimary = Color(0xFFF9FAFB);
+  static const Color _textSecondary = Color(0xFF9CA3AF);
+  static const Color _accentBlue = Color(0xFF60A5FA);
+
   @override
   void initState() {
     super.initState();
@@ -47,16 +54,115 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
     }
   }
 
+  Widget _buildZoneCard(Zone zone) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            context.go('/farms/${widget.farm.id}/zones/${zone.id}');
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _accentBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.place_rounded,
+                    size: 28,
+                    color: _accentBlue,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  zone.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Zone ID: ${zone.id}",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+      ),
+      child: const Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: _textSecondary,
+          ),
+          SizedBox(width: 10),
+          Text(
+            "No zones found",
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: CircularProgressIndicator(
+          color: _accentBlue,
+        ),
       );
     }
 
     return Container(
-      color: const Color(0xFFF7F7F7),
+      color: _bg,
       padding: const EdgeInsets.all(24),
       child: ListView(
         children: [
@@ -65,14 +171,15 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
+              color: _textPrimary,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             widget.farm.location,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 15,
-              color: Colors.grey.shade700,
+              color: _textSecondary,
             ),
           ),
           const SizedBox(height: 24),
@@ -81,15 +188,12 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
+              color: _textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           if (_zones.isEmpty)
-            const Card(
-              child: ListTile(
-                title: Text("No zones found"),
-              ),
-            )
+            _buildEmptyState()
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -115,47 +219,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                   ),
                   itemBuilder: (context, index) {
                     final zone = _zones[index];
-
-                    return Card(
-                      elevation: 2,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          context.go(
-                            '/farms/${widget.farm.id}/zones/${zone.id}',
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.place,
-                                size: 32,
-                                color: Colors.blue,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                zone.name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                "Zone ID: ${zone.id}",
-                                style: TextStyle(
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
+                    return _buildZoneCard(zone);
                   },
                 );
               },

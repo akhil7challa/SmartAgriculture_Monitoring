@@ -6,6 +6,7 @@ import '../../models/device.dart';
 import '../../models/farm.dart';
 import '../../models/rain_forecast.dart';
 import '../../models/telemetry.dart';
+import '../../models/weather_bundle.dart';
 import '../../models/zone.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -31,15 +32,21 @@ class ZoneDashboardInfo {
   });
 }
 
-class FarmRainInfo {
+class FarmWeatherInfo {
   final Farm farm;
   final RainForecast? forecast;
   final String? placeName;
+  final WeatherForecastBundle? forecastBundle;
+  final List<WeatherForecastItem> todayForecast;
+  final List<DailyWeatherSummary> dailySummaries;
 
-  FarmRainInfo({
+  FarmWeatherInfo({
     required this.farm,
     required this.forecast,
     required this.placeName,
+    required this.forecastBundle,
+    required this.todayForecast,
+    required this.dailySummaries,
   });
 }
 
@@ -56,7 +63,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int farmsExpectingRain = 0;
 
   List<ZoneDashboardInfo> zoneInfos = [];
-  List<FarmRainInfo> farmRainInfos = [];
+  List<FarmWeatherInfo> farmWeatherInfos = [];
+
+  // Dark theme colors
+  static const Color _bg = Color(0xFF0B1220);
+  static const Color _card = Color(0xFF111827);
+  static const Color _cardSoft = Color(0xFF1F2937);
+  static const Color _border = Color(0xFF243041);
+  static const Color _textPrimary = Color(0xFFF9FAFB);
+  static const Color _textSecondary = Color(0xFF9CA3AF);
+  static const Color _accentGreen = Color(0xFF22C55E);
+  static const Color _accentBlue = Color(0xFF38BDF8);
+  static const Color _accentAmber = Color(0xFFF59E0B);
+  static const Color _accentRed = Color(0xFFEF4444);
 
   @override
   void initState() {
@@ -69,9 +88,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return forecast.chanceOfRain >= 20 || forecast.expectedRainMm > 0;
   }
 
-  Future<FarmRainInfo> _loadFarmRainInfo(Farm farm) async {
+  Future<FarmWeatherInfo> _loadFarmWeatherInfo(Farm farm) async {
     final results = await Future.wait<dynamic>([
-      _weatherService.getRainForecast(
+      _weatherService.getForecastBundle(
         latitude: farm.latitude,
         longitude: farm.longitude,
       ),
@@ -81,10 +100,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     ]);
 
-    return FarmRainInfo(
+    final forecastBundle = results[0] as WeatherForecastBundle?;
+    final placeName = results[1] as String?;
+    final rainForecast =
+        _weatherService.getRainForecastFromBundle(forecastBundle);
+
+    return FarmWeatherInfo(
       farm: farm,
-      forecast: results[0] as RainForecast?,
-      placeName: results[1] as String?,
+      forecast: rainForecast,
+      placeName: placeName,
+      forecastBundle: forecastBundle,
+      todayForecast: _weatherService.getTodayForecastItems(forecastBundle),
+      dailySummaries: _weatherService.getDailySummaries(forecastBundle),
     );
   }
 
@@ -92,15 +119,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final farms = await _firebaseService.getAllFarms();
 
-      final loadedFarmRainInfos = await Future.wait(
-        farms.map((farm) => _loadFarmRainInfo(farm)),
+      final loadedFarmWeatherInfos = await Future.wait(
+        farms.map((farm) => _loadFarmWeatherInfo(farm)),
       );
 
-      final rainyFarmsCount = loadedFarmRainInfos
+      final rainyFarmsCount = loadedFarmWeatherInfos
           .where((item) => _isRainExpected(item.forecast))
           .length;
 
-      List<ZoneDashboardInfo> loadedZoneInfos = [];
+      final List<ZoneDashboardInfo> loadedZoneInfos = [];
       int zonesCount = 0;
       int devicesCount = 0;
       int scheduledZonesCount = 0;
@@ -151,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         totalDevices = devicesCount;
         totalScheduledZones = scheduledZonesCount;
         farmsExpectingRain = rainyFarmsCount;
-        farmRainInfos = loadedFarmRainInfos;
+        farmWeatherInfos = loadedFarmWeatherInfos;
         zoneInfos = loadedZoneInfos;
         _isLoading = false;
       });
@@ -165,11 +192,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  FarmRainInfo? _nextRainFarm() {
-    FarmRainInfo? best;
+  FarmWeatherInfo? _nextRainFarm() {
+    FarmWeatherInfo? best;
     DateTime? bestTime;
 
-    for (final item in farmRainInfos) {
+    for (final item in farmWeatherInfos) {
       final forecast = item.forecast;
       if (forecast == null) continue;
       if (!_isRainExpected(forecast)) continue;
@@ -181,6 +208,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return best;
+  }
+
+  FarmWeatherInfo? _selectedFarmWeather() {
+    return _nextRainFarm() ??
+        (farmWeatherInfos.isNotEmpty ? farmWeatherInfos.first : null);
   }
 
   String _formatForecastRange(
@@ -313,21 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _latestLastSeen(List<Telemetry> telemetryList) {
     if (telemetryList.isEmpty) return 0;
-    telemetryList.sort((a, b) => a.lastSeen.compareTo(b.lastSeen));
-    return telemetryList.last.lastSeen;
-  }
-
-  String _timeAgo(int unixTimestamp) {
-    if (unixTimestamp == 0) return "No data";
-
-    final now = DateTime.now();
-    final lastSeen = DateTime.fromMillisecondsSinceEpoch(unixTimestamp * 1000);
-    final difference = now.difference(lastSeen);
-
-    if (difference.inSeconds < 60) return "${difference.inSeconds}s ago";
-    if (difference.inMinutes < 60) return "${difference.inMinutes}m ago";
-    if (difference.inHours < 24) return "${difference.inHours}h ago";
-    return "${difference.inDays}d ago";
+    return telemetryList.map((t) => t.lastSeen).reduce((a, b) => a > b ? a : b);
   }
 
   int _healthScore(List<Telemetry> telemetryList) {
@@ -362,51 +380,385 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return "Critical";
   }
 
-  Widget _buildTopCards() {
+  String _weekdayShort(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return "Mon";
+      case DateTime.tuesday:
+        return "Tue";
+      case DateTime.wednesday:
+        return "Wed";
+      case DateTime.thursday:
+        return "Thu";
+      case DateTime.friday:
+        return "Fri";
+      case DateTime.saturday:
+        return "Sat";
+      case DateTime.sunday:
+        return "Sun";
+      default:
+        return "";
+    }
+  }
+
+  Color _scoreColor(int score) {
+    if (score >= 85) return const Color(0xFF22C55E);
+    if (score >= 70) return const Color(0xFF84CC16);
+    if (score >= 50) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  IconData _weatherIcon(String condition) {
+    final c = condition.toLowerCase();
+
+    if (c.contains('thunder')) return Icons.thunderstorm_rounded;
+    if (c.contains('drizzle')) return Icons.grain_rounded;
+    if (c.contains('rain')) return Icons.grain_rounded;
+    if (c.contains('cloud')) return Icons.cloud_rounded;
+    if (c.contains('clear')) return Icons.wb_sunny_rounded;
+    if (c.contains('snow')) return Icons.ac_unit_rounded;
+    if (c.contains('mist') || c.contains('fog') || c.contains('haze')) {
+      return Icons.blur_on_rounded;
+    }
+    return Icons.wb_cloudy_rounded;
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Good Morning, John! 👋",
+                style: TextStyle(
+                  color: _textPrimary,
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Here’s what’s happening across your farms today.",
+                style: TextStyle(
+                  color: _textSecondary.withOpacity(0.9),
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+          ),
+          child: const Icon(
+            Icons.notifications_none_rounded,
+            color: _textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeroWeatherCard() {
+    final selectedFarm = _selectedFarmWeather();
+    final firstForecastItem =
+        selectedFarm?.forecastBundle?.items.isNotEmpty == true
+            ? selectedFarm!.forecastBundle!.items.first
+            : null;
+
+    final farmName = selectedFarm?.farm.name ?? "No farm selected";
+    final area = selectedFarm?.placeName ?? "Location unavailable";
+    final tempText = firstForecastItem != null
+        ? "${firstForecastItem.temperature.toStringAsFixed(0)}°C"
+        : "--";
+    final subtitle = firstForecastItem != null
+        ? (firstForecastItem.description.isNotEmpty
+            ? firstForecastItem.description
+            : firstForecastItem.mainCondition)
+        : "No weather data";
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        image: const DecorationImage(
+          image: NetworkImage(
+            "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1400&q=80",
+          ),
+          fit: BoxFit.cover,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.bottomLeft,
+            end: Alignment.topRight,
+            colors: [
+              Colors.black.withOpacity(0.60),
+              Colors.black.withOpacity(0.25),
+            ],
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 760;
+
+            return isNarrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _heroLeft(
+                        farmName,
+                        area,
+                        tempText,
+                        subtitle,
+                        firstForecastItem?.mainCondition,
+                      ),
+                      const SizedBox(height: 20),
+                      _heroRight(selectedFarm),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: _heroLeft(
+                          farmName,
+                          area,
+                          tempText,
+                          subtitle,
+                          firstForecastItem?.mainCondition,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 2,
+                        child: _heroRight(selectedFarm),
+                      ),
+                    ],
+                  );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _heroLeft(
+    String farmName,
+    String area,
+    String tempText,
+    String subtitle,
+    String? condition,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          farmName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          area,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(height: 32),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Icon(
+              _weatherIcon(condition ?? ''),
+              color: Colors.white,
+              size: 52,
+            ),
+            const SizedBox(width: 14),
+            Text(
+              tempText,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 44,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 18,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _heroRight(FarmWeatherInfo? selectedFarm) {
+    final firstForecastItem =
+        selectedFarm?.forecastBundle?.items.isNotEmpty == true
+            ? selectedFarm!.forecastBundle!.items.first
+            : null;
+    final forecast = selectedFarm?.forecast;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.topRight,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _accentGreen,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              "Live",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 40),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _glassMetric("Farms", "$totalFarms"),
+            _glassMetric(
+              "Humidity",
+              firstForecastItem == null
+                  ? "--"
+                  : "${firstForecastItem.humidity}%",
+            ),
+            _glassMetric(
+              "Wind",
+              firstForecastItem == null
+                  ? "--"
+                  : "${firstForecastItem.windSpeed.toStringAsFixed(1)} m/s",
+            ),
+            _glassMetric(
+              "Rain",
+              forecast == null
+                  ? "--"
+                  : "${forecast.chanceOfRain.toStringAsFixed(0)}%",
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _glassMetric(String label, String value) {
+    return Container(
+      width: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStats() {
+    final allTelemetry = zoneInfos.expand((z) => z.telemetryList).toList();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = 1;
-        if (constraints.maxWidth > 700) crossAxisCount = 2;
-        if (constraints.maxWidth > 1100) crossAxisCount = 3;
-        if (constraints.maxWidth > 1500) crossAxisCount = 5;
+        if (constraints.maxWidth > 600) crossAxisCount = 2;
+        if (constraints.maxWidth > 1000) crossAxisCount = 4;
 
         return GridView.count(
           crossAxisCount: crossAxisCount,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-          childAspectRatio: 2.6,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 2.2,
           children: [
-            _summaryCard(
-              title: "Farms",
-              value: totalFarms.toString(),
-              icon: Icons.agriculture_rounded,
-              color: const Color(0xFF4ADE80),
+            _miniStatCard(
+              icon: Icons.thermostat_rounded,
+              iconColor: _accentRed,
+              title: "Avg. Temperature",
+              value:
+                  "${_averageTemperature(allTelemetry).toStringAsFixed(1)}°C",
+              status: "Normal",
+              statusColor: _accentGreen,
             ),
-            _summaryCard(
-              title: "Zones",
-              value: totalZones.toString(),
-              icon: Icons.map_rounded,
-              color: const Color(0xFF60A5FA),
+            _miniStatCard(
+              icon: Icons.water_drop_rounded,
+              iconColor: const Color(0xFF60A5FA),
+              title: "Avg. Humidity",
+              value: "${_averageHumidity(allTelemetry).toStringAsFixed(0)}%",
+              status: "Normal",
+              statusColor: _accentGreen,
             ),
-            _summaryCard(
-              title: "Devices",
-              value: totalDevices.toString(),
-              icon: Icons.memory_rounded,
-              color: const Color(0xFFF59E0B),
+            _miniStatCard(
+              icon: Icons.eco_rounded,
+              iconColor: _accentGreen,
+              title: "Avg. Soil Moisture",
+              value:
+                  "${_averageSoilMoisture(allTelemetry).toStringAsFixed(0)}%",
+              status: "Good",
+              statusColor: _accentGreen,
             ),
-            _summaryCard(
-              title: "Schedules",
-              value: totalScheduledZones.toString(),
-              icon: Icons.schedule_rounded,
-              color: const Color(0xFF22D3EE),
-            ),
-            _summaryCard(
-              title: "Rain Expected",
-              value: farmsExpectingRain.toString(),
-              icon: Icons.cloud_rounded,
-              color: const Color(0xFF38BDF8),
+            _miniStatCard(
+              icon: Icons.sensors_rounded,
+              iconColor: const Color(0xFF34D399),
+              title: "Active Sensors",
+              value: "$totalDevices",
+              status: "Online",
+              statusColor: _accentGreen,
             ),
           ],
         );
@@ -414,56 +766,430 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _summaryCard({
+  Widget _miniStatCard({
+    required IconData icon,
+    required Color iconColor,
     required String title,
+    required String value,
+    required String status,
+    required Color statusColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: iconColor, size: 28),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1200) {
+          return Column(
+            children: [
+              _buildRainInfoCard(),
+              const SizedBox(height: 16),
+              _buildNextWateringHighlight(),
+              const SizedBox(height: 16),
+              _buildWeatherDetailsCard(),
+              const SizedBox(height: 16),
+              _buildFiveDayForecastCard(),
+              const SizedBox(height: 16),
+              _buildZoneHighlightsGridSingleColumn(),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildRainInfoCard()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildNextWateringHighlight()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildWeatherDetailsCard()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildFiveDayForecastCard()),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _panelCard(
+                      title: "Best Performing Zone",
+                      child: _bestZoneContent(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _panelCard(
+                      title: "Needs Attention",
+                      child: _needsAttentionContent(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRainInfoCard() {
+    final nextRain = _nextRainFarm();
+
+    if (nextRain == null || nextRain.forecast == null) {
+      return _panelCard(
+        title: "Rain Forecast Details",
+        child: const Text(
+          "No rain forecast available for tracked farms.",
+          style: TextStyle(
+            color: _textSecondary,
+            fontSize: 15,
+          ),
+        ),
+      );
+    }
+
+    final forecast = nextRain.forecast!;
+
+    return _panelCard(
+      title: "Rain Forecast Details",
+      trailing: const Text(
+        "Today",
+        style: TextStyle(
+          color: _accentGreen,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "${forecast.chanceOfRain.toStringAsFixed(0)}% chance of rain",
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _softChip(
+                Icons.location_on_outlined,
+                nextRain.placeName ?? "Unknown area",
+              ),
+              _softChip(
+                Icons.water_drop_outlined,
+                "${forecast.expectedRainMm.toStringAsFixed(1)} mm expected",
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _detailRow("Farm", nextRain.farm.name),
+          _detailRow("Area", nextRain.placeName ?? "Unknown"),
+          _detailRow(
+            "Rain Window",
+            _formatForecastRange(
+              forecast.startTime,
+              forecast.endTime,
+              context,
+            ),
+          ),
+          _detailRow("Summary", forecast.summary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextWateringHighlight() {
+    final nextZone = _findNextWateringZone();
+
+    if (nextZone == null) {
+      return _panelCard(
+        title: "Next Watering Schedule",
+        child: const Text(
+          "No watering schedule found.",
+          style: TextStyle(
+            color: _textSecondary,
+            fontSize: 15,
+          ),
+        ),
+      );
+    }
+
+    final healthScore = _healthScore(nextZone.telemetryList);
+
+    return _panelCard(
+      title: "Next Watering Schedule",
+      trailing: Text(
+        _healthStatus(healthScore),
+        style: TextStyle(
+          color: _scoreColor(healthScore),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _formatNextWatering(nextZone.schedule, context),
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _detailRow("Farm", nextZone.farm.name),
+          _detailRow("Zone", nextZone.zone.name),
+          _detailRow("Devices", nextZone.devices.length.toString()),
+          _detailRow("Duration", _formatDurationMinutes(nextZone.schedule)),
+          _detailRow("Mode", (nextZone.schedule?['mode'] ?? 'N/A').toString()),
+          _detailRow("Health", "$healthScore%"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherDetailsCard() {
+    final selectedFarm = _selectedFarmWeather();
+
+    if (selectedFarm == null) {
+      return _panelCard(
+        title: "Weather Details",
+        child: const Text(
+          "No weather details available.",
+          style: TextStyle(
+            color: _textSecondary,
+            fontSize: 15,
+          ),
+        ),
+      );
+    }
+
+    final WeatherForecastItem? currentItem =
+        selectedFarm.todayForecast.isNotEmpty
+            ? selectedFarm.todayForecast.first
+            : (selectedFarm.forecastBundle != null &&
+                    selectedFarm.forecastBundle!.items.isNotEmpty
+                ? selectedFarm.forecastBundle!.items.first
+                : null);
+
+    if (currentItem == null) {
+      return _panelCard(
+        title: "Weather Details",
+        child: const Text(
+          "No weather details available.",
+          style: TextStyle(
+            color: _textSecondary,
+            fontSize: 15,
+          ),
+        ),
+      );
+    }
+
+    return _panelCard(
+      title: "Weather Details",
+      trailing: const Text(
+        "Current",
+        style: TextStyle(
+          color: _accentGreen,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _weatherIcon(currentItem.mainCondition),
+                color: _accentAmber,
+                size: 30,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  currentItem.description.isNotEmpty
+                      ? currentItem.description
+                      : currentItem.mainCondition,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _weatherStatBox(
+                  label: "Temperature",
+                  value: "${currentItem.temperature.toStringAsFixed(1)}°C",
+                  icon: Icons.thermostat_rounded,
+                  color: _accentRed,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _weatherStatBox(
+                  label: "Humidity",
+                  value: "${currentItem.humidity}%",
+                  icon: Icons.water_drop_rounded,
+                  color: const Color(0xFF60A5FA),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _weatherStatBox(
+                  label: "Wind",
+                  value: "${currentItem.windSpeed.toStringAsFixed(1)} m/s",
+                  icon: Icons.air_rounded,
+                  color: const Color(0xFF34D399),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _weatherStatBox(
+                  label: "Rain Chance",
+                  value: "${currentItem.rainChance}%",
+                  icon: Icons.umbrella_rounded,
+                  color: const Color(0xFF818CF8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _weatherStatBox({
+    required String label,
     required String value,
     required IconData icon,
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF101A13),
-            Color(0xFF0A120D),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        color: _cardSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
       ),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.16),
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Text(
+                  "",
+                  style: TextStyle(fontSize: 0),
+                ),
                 Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 15,
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 11,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 3),
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 34,
+                    color: _textPrimary,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -475,144 +1201,139 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRainInfoCard() {
-    final nextRain = _nextRainFarm();
+  Widget _buildFiveDayForecastCard() {
+    final selectedFarm = _selectedFarmWeather();
 
-    if (nextRain == null || nextRain.forecast == null) {
-      return _highlightCard(
-        title: "Rain Forecast Details",
+    if (selectedFarm == null || selectedFarm.dailySummaries.isEmpty) {
+      return _panelCard(
+        title: "5 Day Forecast",
         child: const Text(
-          "No rain forecast available for tracked farms",
+          "No daily forecast available.",
           style: TextStyle(
-            color: Colors.white70,
-            fontSize: 16,
+            color: _textSecondary,
+            fontSize: 15,
           ),
         ),
       );
     }
 
-    final forecast = nextRain.forecast!;
+    final items = selectedFarm.dailySummaries.take(5).toList();
 
-    return _highlightCard(
-      title: "Rain Forecast Details",
+    return _panelCard(
+      title: "5 Day Forecast",
+      trailing: Text(
+        selectedFarm.placeName ?? "",
+        style: const TextStyle(
+          color: _accentGreen,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "${forecast.chanceOfRain.toStringAsFixed(0)}% chance of rain",
+        children: List.generate(items.length, (index) {
+          final item = items[index];
+
+          return Column(
+            children: [
+              _forecastStyledRow(
+                day: _weekdayShort(item.date.weekday),
+                icon: _weatherIcon(item.condition),
+                max: item.maxTemp.round(),
+                min: item.minTemp.round(),
+                rainChance: item.averageRainChance,
+                condition: item.condition,
+              ),
+              if (index != items.length - 1) ...[
+                const SizedBox(height: 14),
+                const Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: _border,
+                ),
+                const SizedBox(height: 14),
+              ],
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _forecastStyledRow({
+    required String day,
+    required IconData icon,
+    required int max,
+    required int min,
+    required int rainChance,
+    required String condition,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 42,
+          child: Text(
+            day,
             style: const TextStyle(
-              color: Color(0xFF38BDF8),
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+              color: _textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+        ),
+        const SizedBox(width: 8),
+        Icon(
+          icon,
+          color: _accentAmber,
+          size: 22,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _metricChip(
-                nextRain.placeName ?? "Unknown area",
-                const Color(0xFF93C5FD),
+              Text(
+                "$max° / $min°",
+                style: const TextStyle(
+                  color: _textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              _metricChip(
-                "Lat ${nextRain.farm.latitude.toStringAsFixed(2)}, Lon ${nextRain.farm.longitude.toStringAsFixed(2)}",
-                const Color(0xFFCBD5E1),
+              const SizedBox(height: 3),
+              Text(
+                condition,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          _infoRow("Farm", nextRain.farm.name),
-          _infoRow("Area", nextRain.placeName ?? "Unknown"),
-          _infoRow(
-            "Rain Window",
-            _formatForecastRange(
-              forecast.startTime,
-              forecast.endTime,
-              context,
-            ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          "$rainChance%",
+          style: const TextStyle(
+            color: _accentBlue,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
           ),
-          _infoRow(
-            "Expected Rain",
-            "${forecast.expectedRainMm.toStringAsFixed(1)} mm",
-          ),
-          _infoRow("Summary", forecast.summary),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildNextWateringHighlight() {
-    final nextZone = _findNextWateringZone();
-
-    if (nextZone == null) {
-      return _highlightCard(
-        title: "Next Watering Schedule",
-        child: const Text(
-          "No watering schedule found",
-          style: TextStyle(color: Colors.white70, fontSize: 16),
+  Widget _bestZoneContent() {
+    if (zoneInfos.isEmpty) {
+      return const Text(
+        "No zone data available.",
+        style: TextStyle(
+          color: _textSecondary,
+          fontSize: 15,
         ),
       );
-    }
-
-    final healthScore = _healthScore(nextZone.telemetryList);
-
-    return _highlightCard(
-      title: "Next Watering Schedule",
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _formatNextWatering(nextZone.schedule, context),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _infoRow("Farm", nextZone.farm.name),
-          _infoRow("Zone", nextZone.zone.name),
-          _infoRow("Devices", nextZone.devices.length.toString()),
-          _infoRow("Duration", _formatDurationMinutes(nextZone.schedule)),
-          _infoRow("Mode", (nextZone.schedule?['mode'] ?? 'N/A').toString()),
-          _infoRow(
-            "Health",
-            "${_healthStatus(healthScore)} ($healthScore%)",
-          ),
-          if (nextZone.telemetryList.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _metricChip(
-                  "Temp ${_averageTemperature(nextZone.telemetryList).toStringAsFixed(1)}°C",
-                  const Color(0xFFFF8A65),
-                ),
-                _metricChip(
-                  "Humidity ${_averageHumidity(nextZone.telemetryList).toStringAsFixed(0)}%",
-                  const Color(0xFF4FC3F7),
-                ),
-                _metricChip(
-                  "Soil ${_averageSoilMoisture(nextZone.telemetryList).toStringAsFixed(0)}%",
-                  const Color(0xFF81C784),
-                ),
-                _metricChip(
-                  "Updated ${_timeAgo(_latestLastSeen(nextZone.telemetryList))}",
-                  const Color(0xFFB39DDB),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildZoneHighlightsGrid() {
-    if (zoneInfos.isEmpty) {
-      return const SizedBox.shrink();
     }
 
     final sorted = [...zoneInfos];
@@ -622,33 +1343,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return bScore.compareTo(aScore);
     });
 
-    final bestZone = sorted.first;
-    final weakestZone = sorted.last;
+    return _zoneSnapshot(sorted.first);
+  }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = 1;
-        if (constraints.maxWidth > 900) crossAxisCount = 2;
+  Widget _needsAttentionContent() {
+    if (zoneInfos.isEmpty) {
+      return const Text(
+        "No zone data available.",
+        style: TextStyle(
+          color: _textSecondary,
+          fontSize: 15,
+        ),
+      );
+    }
 
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-          childAspectRatio: 1.5,
-          children: [
-            _highlightCard(
-              title: "Best Performing Zone",
-              child: _zoneSnapshot(bestZone),
-            ),
-            _highlightCard(
-              title: "Needs Attention",
-              child: _zoneSnapshot(weakestZone),
-            ),
-          ],
-        );
-      },
+    final sorted = [...zoneInfos];
+    sorted.sort((a, b) {
+      final aScore = _healthScore(a.telemetryList);
+      final bScore = _healthScore(b.telemetryList);
+      return bScore.compareTo(aScore);
+    });
+
+    return _zoneSnapshot(sorted.last);
+  }
+
+  Widget _buildZoneHighlightsGridSingleColumn() {
+    return Column(
+      children: [
+        _panelCard(
+          title: "Best Performing Zone",
+          child: _bestZoneContent(),
+        ),
+        const SizedBox(height: 16),
+        _panelCard(
+          title: "Needs Attention",
+          child: _needsAttentionContent(),
+        ),
+      ],
     );
   }
 
@@ -661,8 +1392,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(
           info.zone.name,
           style: const TextStyle(
-            color: Colors.white,
-            fontSize: 21,
+            color: _textPrimary,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -670,31 +1401,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(
           info.farm.name,
           style: const TextStyle(
-            color: Colors.white70,
+            color: _textSecondary,
             fontSize: 14,
           ),
         ),
-        const SizedBox(height: 14),
-        _infoRow("Health", "${_healthStatus(score)} ($score%)"),
-        _infoRow("Devices", info.devices.length.toString()),
-        _infoRow("Next Watering", _formatNextWatering(info.schedule, context)),
+        const SizedBox(height: 16),
+        _detailRow("Health", "${_healthStatus(score)} ($score%)"),
+        _detailRow("Devices", info.devices.length.toString()),
+        _detailRow(
+            "Next Watering", _formatNextWatering(info.schedule, context)),
         if (info.telemetryList.isNotEmpty) ...[
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _metricChip(
-                "Temp ${_averageTemperature(info.telemetryList).toStringAsFixed(1)}°C",
-                const Color(0xFFFF8A65),
+              _softChip(
+                Icons.thermostat_rounded,
+                "${_averageTemperature(info.telemetryList).toStringAsFixed(1)}°C",
               ),
-              _metricChip(
-                "Humidity ${_averageHumidity(info.telemetryList).toStringAsFixed(0)}%",
-                const Color(0xFF4FC3F7),
+              _softChip(
+                Icons.water_drop_rounded,
+                "${_averageHumidity(info.telemetryList).toStringAsFixed(0)}%",
               ),
-              _metricChip(
-                "Soil ${_averageSoilMoisture(info.telemetryList).toStringAsFixed(0)}%",
-                const Color(0xFF81C784),
+              _softChip(
+                Icons.eco_rounded,
+                "${_averageSoilMoisture(info.telemetryList).toStringAsFixed(0)}%",
               ),
             ],
           ),
@@ -703,41 +1435,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _highlightCard({
+  Widget _panelCard({
     required String title,
     required Widget child,
+    Widget? trailing,
   }) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
+        color: _card,
         borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0F1720),
-            Color(0xFF101A13),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.20),
+            color: Colors.black.withOpacity(0.22),
             blurRadius: 18,
-            offset: const Offset(0, 10),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
           ),
           const SizedBox(height: 18),
           child,
@@ -746,17 +1481,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const SizedBox(
+            width: 110,
+            child: Text(
+              "",
+              style: TextStyle(fontSize: 0),
+            ),
+          ),
           SizedBox(
             width: 110,
             child: Text(
               label,
               style: const TextStyle(
-                color: Colors.white60,
+                color: _textSecondary,
                 fontSize: 14,
               ),
             ),
@@ -765,7 +1508,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Text(
               value,
               style: const TextStyle(
-                color: Colors.white,
+                color: _textPrimary,
                 fontSize: 14.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -776,21 +1519,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _metricChip(String text, Color color) {
+  Widget _softChip(IconData icon, String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: _cardSoft,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.20)),
+        border: Border.all(color: _border),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(width: 0),
+          Icon(icon, size: 16, color: _textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -799,39 +1550,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: CircularProgressIndicator(
+          color: _accentGreen,
+        ),
       );
     }
 
     return Container(
-      color: const Color(0xFF08110C),
-      padding: const EdgeInsets.all(24),
+      color: _bg,
       child: ListView(
+        padding: const EdgeInsets.all(24),
         children: [
-          const Text(
-            "Dashboard",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Smart irrigation insights across all farms and zones",
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.70),
-              fontSize: 15,
-            ),
-          ),
+          _buildHeader(),
           const SizedBox(height: 24),
-          _buildTopCards(),
-          const SizedBox(height: 24),
-          _buildRainInfoCard(),
-          const SizedBox(height: 24),
-          _buildNextWateringHighlight(),
-          const SizedBox(height: 24),
-          _buildZoneHighlightsGrid(),
+          _buildHeroWeatherCard(),
+          const SizedBox(height: 20),
+          _buildMiniStats(),
+          const SizedBox(height: 20),
+          _buildDashboardGrid(),
         ],
       ),
     );
