@@ -57,9 +57,7 @@ class DashboardLayout extends StatelessWidget {
               }
             },
           ),
-          Expanded(
-            child: child,
-          ),
+          Expanded(child: child),
         ],
       ),
     );

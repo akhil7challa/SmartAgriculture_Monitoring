@@ -27,126 +27,141 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
   }
 
   Future<void> _loadFarmData() async {
-    final zones = await _firebaseService.getZones(widget.farm.id);
+    try {
+      final zones = await _firebaseService.getZones(widget.farm.id);
 
-    setState(() {
-      _zones = zones;
-      _isLoading = false;
-    });
+      if (!mounted) return;
+
+      setState(() {
+        _zones = zones;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Farm details load error: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.farm.name),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            context.go('/farms');
-          },
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(24),
-              child: ListView(
-                children: [
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.agriculture),
-                      title: Text(widget.farm.name),
-                      subtitle: Text(widget.farm.location),
-                    ),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    return Container(
+      color: const Color(0xFFF7F7F7),
+      padding: const EdgeInsets.all(24),
+      child: ListView(
+        children: [
+          Text(
+            widget.farm.name,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.farm.location,
+            style: TextStyle(
+              fontSize: 15,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "Zones",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_zones.isEmpty)
+            const Card(
+              child: ListTile(
+                title: Text("No zones found"),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount = 1;
+
+                if (constraints.maxWidth > 700) {
+                  crossAxisCount = 2;
+                }
+
+                if (constraints.maxWidth > 1100) {
+                  crossAxisCount = 3;
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _zones.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.8,
                   ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    "Zones",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_zones.isEmpty)
-                    const Card(
-                      child: ListTile(
-                        title: Text("No zones found"),
-                      ),
-                    )
-                  else
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        int crossAxisCount = 1;
+                  itemBuilder: (context, index) {
+                    final zone = _zones[index];
 
-                        if (constraints.maxWidth > 700) {
-                          crossAxisCount = 2;
-                        }
-
-                        if (constraints.maxWidth > 1100) {
-                          crossAxisCount = 3;
-                        }
-
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _zones.length,
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.8,
-                          ),
-                          itemBuilder: (context, index) {
-                            final zone = _zones[index];
-
-                            return Card(
-                              elevation: 2,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  context.go(
-                                    '/farms/${widget.farm.id}/zones/${zone.id}',
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.place,
-                                        size: 32,
-                                        color: Colors.blue,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        zone.name,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        "Zone ID: ${zone.id}",
-                                        style: TextStyle(
-                                          color: Colors.grey.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                    return Card(
+                      elevation: 2,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          context.go(
+                            '/farms/${widget.farm.id}/zones/${zone.id}',
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.place,
+                                size: 32,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                zone.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                ],
-              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                "Zone ID: ${zone.id}",
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
+        ],
+      ),
     );
   }
 }

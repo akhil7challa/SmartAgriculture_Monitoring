@@ -5,7 +5,6 @@ import '../../models/farm.dart';
 import '../../shared/widgets/farm_card.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/search_box.dart';
-import '../../shared/widgets/summary_card.dart';
 import 'farm_details_screen.dart';
 
 class FarmsScreen extends StatefulWidget {
@@ -19,13 +18,15 @@ class _FarmsScreenState extends State<FarmsScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   late Future<List<Farm>> farmsFuture;
-
   final TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     farmsFuture = _firebaseService.getAllFarms();
+    searchController.addListener(() {
+      setState(() {});
+    });
   }
 
   @override
@@ -40,24 +41,27 @@ class _FarmsScreenState extends State<FarmsScreen> {
       future: farmsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         }
 
         if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
+          return Center(
+            child: Text(snapshot.error.toString()),
+          );
         }
 
         List<Farm> farms = snapshot.data ?? [];
 
-        // Search Filter
         if (searchController.text.isNotEmpty) {
           farms = farms.where((farm) {
             return farm.name.toLowerCase().contains(
-                  searchController.text.toLowerCase(),
-                ) ||
+                      searchController.text.toLowerCase(),
+                    ) ||
                 farm.location.toLowerCase().contains(
-                  searchController.text.toLowerCase(),
-                );
+                      searchController.text.toLowerCase(),
+                    );
           }).toList();
         }
 
@@ -71,54 +75,15 @@ class _FarmsScreenState extends State<FarmsScreen> {
                 subtitle: "Manage all your farms from one place.",
                 action: ElevatedButton.icon(
                   onPressed: () {
-                    // We'll implement this in the next step
+                    // Add new farm action
                   },
                   icon: const Icon(Icons.add),
                   label: const Text("New Farm"),
                 ),
               ),
-
-              GridView.count(
-                crossAxisCount: 4,
-                crossAxisSpacing: 20,
-                mainAxisSpacing: 20,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 2.4,
-                children: [
-                  SummaryCard(
-                    title: "Farms",
-                    value: farms.length.toString(),
-                    icon: Icons.agriculture,
-                    color: Colors.green,
-                  ),
-                  const SummaryCard(
-                    title: "Zones",
-                    value: "1",
-                    icon: Icons.map,
-                    color: Colors.blue,
-                  ),
-                  const SummaryCard(
-                    title: "Devices",
-                    value: "1",
-                    icon: Icons.memory,
-                    color: Colors.orange,
-                  ),
-                  const SummaryCard(
-                    title: "Online",
-                    value: "1",
-                    icon: Icons.wifi,
-                    color: Colors.teal,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
+              const SizedBox(height: 24),
               SearchBox(controller: searchController),
-
               const SizedBox(height: 30),
-
               Expanded(
                 child: farms.isEmpty
                     ? const Center(
@@ -147,11 +112,11 @@ class _FarmsScreenState extends State<FarmsScreen> {
                             itemCount: farms.length,
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  crossAxisSpacing: 20,
-                                  mainAxisSpacing: 20,
-                                  childAspectRatio: 1.25,
-                                ),
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 20,
+                              mainAxisSpacing: 20,
+                              childAspectRatio: 1.25,
+                            ),
                             itemBuilder: (context, index) {
                               final farm = farms[index];
 
