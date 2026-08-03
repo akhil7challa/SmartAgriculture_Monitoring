@@ -65,7 +65,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<ZoneDashboardInfo> zoneInfos = [];
   List<FarmWeatherInfo> farmWeatherInfos = [];
 
-  // Dark theme colors
   static const Color _bg = Color(0xFF0B1220);
   static const Color _card = Color(0xFF111827);
   static const Color _cardSoft = Color(0xFF1F2937);
@@ -86,6 +85,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isRainExpected(RainForecast? forecast) {
     if (forecast == null) return false;
     return forecast.chanceOfRain >= 20 || forecast.expectedRainMm > 0;
+  }
+
+  String _timeSegmentDetailed() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 6) return 'sunrise_light';
+    if (hour >= 6 && hour < 8) return 'sunrise_full';
+    if (hour >= 8 && hour < 16) return 'midday';
+    if (hour >= 16 && hour < 17) return 'sunset_light';
+    if (hour >= 17 && hour < 19) return 'sunset_full';
+    return 'night';
+  }
+
+  String _heroImageForWeather(WeatherForecastItem? item) {
+    final main = (item?.mainCondition ?? '').toLowerCase().trim();
+    final desc = (item?.description ?? '').toLowerCase().trim();
+    final rainChance = item?.rainChance ?? 0;
+    final time = _timeSegmentDetailed();
+
+    if (main.contains('thunder') || desc.contains('thunder')) {
+      return "https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (main.contains('snow') || desc.contains('snow')) {
+      return "https://images.unsplash.com/photo-1483664852095-d6cc6870702d?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('fog') ||
+        desc.contains('mist') ||
+        desc.contains('haze')) {
+      return "https://images.unsplash.com/photo-1487621167305-5d248087c724?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('heavy rain') ||
+        desc.contains('moderate rain') ||
+        desc.contains('very heavy rain') ||
+        desc.contains('extreme rain') ||
+        rainChance >= 70) {
+      return "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('light rain') ||
+        desc.contains('drizzle') ||
+        main.contains('rain') ||
+        rainChance >= 20) {
+      return "https://images.unsplash.com/photo-1501691223387-dd0500403074?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('overcast')) {
+      return "https://images.unsplash.com/photo-1499346030926-9a72daac6c63?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('broken clouds') || desc.contains('scattered clouds')) {
+      return "https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (desc.contains('few clouds') || main.contains('cloud')) {
+      return "https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (main.contains('clear') ||
+        desc.contains('clear') ||
+        desc.contains('sunny')) {
+      if (time == 'sunrise_light') {
+        return "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=80";
+      }
+      if (time == 'sunrise_full') {
+        return "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1400&q=80";
+      }
+      if (time == 'midday') {
+        return "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1400&q=80";
+      }
+      if (time == 'sunset_light') {
+        return "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1400&q=80";
+      }
+      if (time == 'sunset_full') {
+        return "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?auto=format&fit=crop&w=1400&q=80";
+      }
+      return "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1400&q=80";
+    }
+
+    if (time == 'sunrise_light') {
+      return "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=80";
+    }
+    if (time == 'sunrise_full') {
+      return "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=1400&q=80";
+    }
+    if (time == 'midday') {
+      return "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1400&q=80";
+    }
+    if (time == 'sunset_light') {
+      return "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1400&q=80";
+    }
+    if (time == 'sunset_full') {
+      return "https://images.unsplash.com/photo-1501973801540-537f08ccae7b?auto=format&fit=crop&w=1400&q=80";
+    }
+    return "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1400&q=80";
   }
 
   Future<FarmWeatherInfo> _loadFarmWeatherInfo(Farm farm) async {
@@ -415,7 +511,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (c.contains('drizzle')) return Icons.grain_rounded;
     if (c.contains('rain')) return Icons.grain_rounded;
     if (c.contains('cloud')) return Icons.cloud_rounded;
-    if (c.contains('clear')) return Icons.wb_sunny_rounded;
+    if (c.contains('clear') || c.contains('sunny'))
+      return Icons.wb_sunny_rounded;
     if (c.contains('snow')) return Icons.ac_unit_rounded;
     if (c.contains('mist') || c.contains('fog') || c.contains('haze')) {
       return Icons.blur_on_rounded;
@@ -431,7 +528,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Good Morning, John! 👋",
+                "Good Morning, Akhil! 👋",
                 style: TextStyle(
                   color: _textPrimary,
                   fontSize: 30,
@@ -483,15 +580,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             : firstForecastItem.mainCondition)
         : "No weather data";
 
+    final heroImage = _heroImageForWeather(firstForecastItem);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        image: const DecorationImage(
-          image: NetworkImage(
-            "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1400&q=80",
-          ),
+        image: DecorationImage(
+          image: NetworkImage(heroImage),
           fit: BoxFit.cover,
         ),
         boxShadow: [
@@ -531,7 +628,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         firstForecastItem?.mainCondition,
                       ),
                       const SizedBox(height: 20),
-                      _heroRight(selectedFarm),
+                      _heroRight(),
                     ],
                   )
                 : Row(
@@ -550,7 +647,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 20),
                       Expanded(
                         flex: 2,
-                        child: _heroRight(selectedFarm),
+                        child: _heroRight(),
                       ),
                     ],
                   );
@@ -618,13 +715,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _heroRight(FarmWeatherInfo? selectedFarm) {
-    final firstForecastItem =
-        selectedFarm?.forecastBundle?.items.isNotEmpty == true
-            ? selectedFarm!.forecastBundle!.items.first
-            : null;
-    final forecast = selectedFarm?.forecast;
-
+  Widget _heroRight() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -652,24 +743,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           runSpacing: 10,
           children: [
             _glassMetric("Farms", "$totalFarms"),
-            _glassMetric(
-              "Humidity",
-              firstForecastItem == null
-                  ? "--"
-                  : "${firstForecastItem.humidity}%",
-            ),
-            _glassMetric(
-              "Wind",
-              firstForecastItem == null
-                  ? "--"
-                  : "${firstForecastItem.windSpeed.toStringAsFixed(1)} m/s",
-            ),
-            _glassMetric(
-              "Rain",
-              forecast == null
-                  ? "--"
-                  : "${forecast.chanceOfRain.toStringAsFixed(0)}%",
-            ),
+            _glassMetric("Zones", "$totalZones"),
+            _glassMetric("Devices", "$totalDevices"),
+            _glassMetric("Scheduled", "$totalScheduledZones"),
           ],
         ),
       ],
@@ -889,6 +965,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: _panelCard(
                       title: "Needs Attention",
                       child: _needsAttentionContent(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _panelCard(
+                      title: "Recommendations",
+                      child: _recommendationsContent(),
                     ),
                   ),
                 ],
@@ -1169,10 +1252,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "",
-                  style: TextStyle(fontSize: 0),
-                ),
                 Text(
                   label,
                   maxLines: 1,
@@ -1367,6 +1446,159 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return _zoneSnapshot(sorted.last);
   }
 
+  Widget _recommendationsContent() {
+    if (zoneInfos.isEmpty) {
+      return const Text(
+        "No recommendations available.",
+        style: TextStyle(
+          color: _textSecondary,
+          fontSize: 15,
+        ),
+      );
+    }
+
+    final List<ZoneDashboardInfo> weakZones =
+        zoneInfos.where((z) => _healthScore(z.telemetryList) < 70).toList();
+
+    weakZones.sort((a, b) {
+      final aScore = _healthScore(a.telemetryList);
+      final bScore = _healthScore(b.telemetryList);
+      return aScore.compareTo(bScore);
+    });
+
+    final List<ZoneDashboardInfo> unscheduledZones =
+        zoneInfos.where((z) => z.schedule == null).toList();
+
+    final List<Widget> items = [];
+
+    for (final zoneInfo in weakZones.take(2)) {
+      final score = _healthScore(zoneInfo.telemetryList);
+      items.add(
+        _recommendationTile(
+          icon: Icons.warning_amber_rounded,
+          iconColor: _accentRed,
+          title: zoneInfo.zone.name,
+          farmName: zoneInfo.farm.name,
+          message: "Low health score detected ($score%). Check this zone soon.",
+        ),
+      );
+    }
+
+    for (final zoneInfo in unscheduledZones.take(2)) {
+      items.add(
+        _recommendationTile(
+          icon: Icons.schedule_rounded,
+          iconColor: _accentAmber,
+          title: zoneInfo.zone.name,
+          farmName: zoneInfo.farm.name,
+          message: "This zone has no watering schedule configured.",
+        ),
+      );
+    }
+
+    if (farmsExpectingRain > 0) {
+      final rainyFarm = _nextRainFarm();
+      if (rainyFarm != null) {
+        items.add(
+          _recommendationTile(
+            icon: Icons.cloud_rounded,
+            iconColor: _accentBlue,
+            title: rainyFarm.farm.name,
+            farmName: rainyFarm.placeName ?? "Weather alert",
+            message: "Rain is expected soon. Consider delaying irrigation.",
+          ),
+        );
+      }
+    }
+
+    if (items.isEmpty) {
+      items.add(
+        _recommendationTile(
+          icon: Icons.check_circle_rounded,
+          iconColor: _accentGreen,
+          title: "All Zones",
+          farmName: "System Status",
+          message: "Everything looks good. No urgent action is required.",
+        ),
+      );
+    }
+
+    return Column(
+      children: List.generate(items.length, (index) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: index == items.length - 1 ? 0 : 12),
+          child: items[index],
+        );
+      }),
+    );
+  }
+
+  Widget _recommendationTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String farmName,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardSoft,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  farmName,
+                  style: const TextStyle(
+                    color: _accentBlue,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 13.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildZoneHighlightsGridSingleColumn() {
     return Column(
       children: [
@@ -1378,6 +1610,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _panelCard(
           title: "Needs Attention",
           child: _needsAttentionContent(),
+        ),
+        const SizedBox(height: 16),
+        _panelCard(
+          title: "Recommendations",
+          child: _recommendationsContent(),
         ),
       ],
     );
@@ -1487,13 +1724,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
-            width: 110,
-            child: Text(
-              "",
-              style: TextStyle(fontSize: 0),
-            ),
-          ),
           SizedBox(
             width: 110,
             child: Text(
@@ -1530,7 +1760,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(width: 0),
           Icon(icon, size: 16, color: _textSecondary),
           const SizedBox(width: 6),
           Text(
