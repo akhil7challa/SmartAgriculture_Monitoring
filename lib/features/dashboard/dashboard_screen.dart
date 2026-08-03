@@ -50,6 +50,24 @@ class FarmWeatherInfo {
   });
 }
 
+class FarmDashboardData {
+  final Farm farm;
+  final FarmWeatherInfo weatherInfo;
+  final List<ZoneDashboardInfo> zoneInfos;
+  final int totalZones;
+  final int totalDevices;
+  final int totalScheduledZones;
+
+  FarmDashboardData({
+    required this.farm,
+    required this.weatherInfo,
+    required this.zoneInfos,
+    required this.totalZones,
+    required this.totalDevices,
+    required this.totalScheduledZones,
+  });
+}
+
 class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final WeatherService _weatherService = WeatherService();
@@ -57,13 +75,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
 
   int totalFarms = 0;
-  int totalZones = 0;
-  int totalDevices = 0;
-  int totalScheduledZones = 0;
-  int farmsExpectingRain = 0;
-
-  List<ZoneDashboardInfo> zoneInfos = [];
-  List<FarmWeatherInfo> farmWeatherInfos = [];
+  List<FarmDashboardData> farmDashboards = [];
+  int _selectedFarmIndex = 0;
 
   static const Color _bg = Color(0xFF0B1220);
   static const Color _card = Color(0xFF111827);
@@ -81,6 +94,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadDashboardData();
   }
+
+  FarmDashboardData? get _selectedFarmData {
+    if (farmDashboards.isEmpty) return null;
+    if (_selectedFarmIndex < 0 || _selectedFarmIndex >= farmDashboards.length) {
+      return null;
+    }
+    return farmDashboards[_selectedFarmIndex];
+  }
+
+  List<ZoneDashboardInfo> get _selectedZoneInfos {
+    return _selectedFarmData?.zoneInfos ?? [];
+  }
+
+  FarmWeatherInfo? get _selectedWeatherInfo {
+    return _selectedFarmData?.weatherInfo;
+  }
+
+  int get _selectedTotalZones => _selectedFarmData?.totalZones ?? 0;
+  int get _selectedTotalDevices => _selectedFarmData?.totalDevices ?? 0;
+  int get _selectedTotalScheduledZones =>
+      _selectedFarmData?.totalScheduledZones ?? 0;
 
   bool _isRainExpected(RainForecast? forecast) {
     if (forecast == null) return false;
@@ -215,22 +249,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final farms = await _firebaseService.getAllFarms();
 
-      final loadedFarmWeatherInfos = await Future.wait(
-        farms.map((farm) => _loadFarmWeatherInfo(farm)),
-      );
-
-      final rainyFarmsCount = loadedFarmWeatherInfos
-          .where((item) => _isRainExpected(item.forecast))
-          .length;
-
-      final List<ZoneDashboardInfo> loadedZoneInfos = [];
-      int zonesCount = 0;
-      int devicesCount = 0;
-      int scheduledZonesCount = 0;
+      final List<FarmDashboardData> loadedDashboards = [];
 
       for (final farm in farms) {
+        final weatherInfo = await _loadFarmWeatherInfo(farm);
         final zones = await _firebaseService.getZones(farm.id);
-        zonesCount += zones.length;
+
+        final List<ZoneDashboardInfo> loadedZoneInfos = [];
+        int devicesCount = 0;
+        int scheduledZonesCount = 0;
 
         for (final zone in zones) {
           final results = await Future.wait<dynamic>([
@@ -264,18 +291,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         }
+
+        loadedDashboards.add(
+          FarmDashboardData(
+            farm: farm,
+            weatherInfo: weatherInfo,
+            zoneInfos: loadedZoneInfos,
+            totalZones: zones.length,
+            totalDevices: devicesCount,
+            totalScheduledZones: scheduledZonesCount,
+          ),
+        );
       }
 
       if (!mounted) return;
 
       setState(() {
         totalFarms = farms.length;
-        totalZones = zonesCount;
-        totalDevices = devicesCount;
-        totalScheduledZones = scheduledZonesCount;
-        farmsExpectingRain = rainyFarmsCount;
-        farmWeatherInfos = loadedFarmWeatherInfos;
-        zoneInfos = loadedZoneInfos;
+        farmDashboards = loadedDashboards;
+        _selectedFarmIndex = loadedDashboards.isNotEmpty ? 0 : -1;
         _isLoading = false;
       });
     } catch (e) {
@@ -288,27 +322,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  FarmWeatherInfo? _nextRainFarm() {
-    FarmWeatherInfo? best;
-    DateTime? bestTime;
-
-    for (final item in farmWeatherInfos) {
-      final forecast = item.forecast;
-      if (forecast == null) continue;
-      if (!_isRainExpected(forecast)) continue;
-
-      if (bestTime == null || forecast.startTime.isBefore(bestTime)) {
-        bestTime = forecast.startTime;
-        best = item;
-      }
-    }
-
-    return best;
+  void _goToPreviousFarm() {
+    if (farmDashboards.isEmpty) return;
+    setState(() {
+      _selectedFarmIndex = (_selectedFarmIndex - 1 + farmDashboards.length) %
+          farmDashboards.length;
+    });
   }
 
-  FarmWeatherInfo? _selectedFarmWeather() {
-    return _nextRainFarm() ??
-        (farmWeatherInfos.isNotEmpty ? farmWeatherInfos.first : null);
+  void _goToNextFarm() {
+    if (farmDashboards.isEmpty) return;
+    setState(() {
+      _selectedFarmIndex = (_selectedFarmIndex + 1) % farmDashboards.length;
+    });
   }
 
   String _formatForecastRange(
@@ -337,6 +363,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return "$startDate, $startTime - $endDate, $endTime";
   }
 
+  ZoneDashboardInfo? _findNextWateringZone() {
+    ZoneDashboardInfo? bestZone;
+    DateTime? bestTime;
+
+    for (final info in _selectedZoneInfos) {
+      final next = _nextWateringDateTime(info.schedule);
+      if (next == null) continue;
+
+      if (bestTime == null || next.isBefore(bestTime)) {
+        bestTime = next;
+        bestZone = info;
+      }
+    }
+
+    return bestZone;
+  }
+
   DateTime? _nextWateringDateTime(Map<String, dynamic>? schedule) {
     if (schedule == null) return null;
 
@@ -359,23 +402,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return next;
-  }
-
-  ZoneDashboardInfo? _findNextWateringZone() {
-    ZoneDashboardInfo? bestZone;
-    DateTime? bestTime;
-
-    for (final info in zoneInfos) {
-      final next = _nextWateringDateTime(info.schedule);
-      if (next == null) continue;
-
-      if (bestTime == null || next.isBefore(bestTime)) {
-        bestTime = next;
-        bestZone = info;
-      }
-    }
-
-    return bestZone;
   }
 
   String _formatNextWatering(
@@ -521,6 +547,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeader() {
+    final selectedFarm = _selectedFarmData?.farm.name ?? "No Farm";
+
     return Row(
       children: [
         Expanded(
@@ -537,7 +565,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                "Here’s what’s happening across your farms today.",
+                "Viewing dashboard for $selectedFarm.",
                 style: TextStyle(
                   color: _textSecondary.withOpacity(0.9),
                   fontSize: 15,
@@ -563,14 +591,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeroWeatherCard() {
-    final selectedFarm = _selectedFarmWeather();
+    final selectedFarmData = _selectedFarmData;
+    final selectedWeather = _selectedWeatherInfo;
+
     final firstForecastItem =
-        selectedFarm?.forecastBundle?.items.isNotEmpty == true
-            ? selectedFarm!.forecastBundle!.items.first
+        selectedWeather?.forecastBundle?.items.isNotEmpty == true
+            ? selectedWeather!.forecastBundle!.items.first
             : null;
 
-    final farmName = selectedFarm?.farm.name ?? "No farm selected";
-    final area = selectedFarm?.placeName ?? "Location unavailable";
+    final farmName = selectedFarmData?.farm.name ?? "No farm selected";
+    final area = selectedWeather?.placeName ?? "Location unavailable";
     final tempText = firstForecastItem != null
         ? "${firstForecastItem.temperature.toStringAsFixed(0)}°C"
         : "--";
@@ -582,77 +612,119 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final heroImage = _heroImageForWeather(firstForecastItem);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        image: DecorationImage(
-          image: NetworkImage(heroImage),
-          fit: BoxFit.cover,
+    return Row(
+      children: [
+        _farmNavButton(
+          icon: Icons.chevron_left_rounded,
+          onTap: _goToPreviousFarm,
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              image: DecorationImage(
+                image: NetworkImage(heroImage),
+                fit: BoxFit.cover,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
+                  colors: [
+                    Colors.black.withOpacity(0.60),
+                    Colors.black.withOpacity(0.25),
+                  ],
+                ),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 760;
+
+                  return isNarrow
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _heroLeft(
+                              farmName,
+                              area,
+                              tempText,
+                              subtitle,
+                              firstForecastItem?.mainCondition,
+                            ),
+                            const SizedBox(height: 20),
+                            _heroRight(),
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _heroLeft(
+                                farmName,
+                                area,
+                                tempText,
+                                subtitle,
+                                firstForecastItem?.mainCondition,
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 2,
+                              child: _heroRight(),
+                            ),
+                          ],
+                        );
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _farmNavButton(
+          icon: Icons.chevron_right_rounded,
+          onTap: _goToNextFarm,
+        ),
+      ],
+    );
+  }
+
+  Widget _farmNavButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.bottomLeft,
-            end: Alignment.topRight,
-            colors: [
-              Colors.black.withOpacity(0.60),
-              Colors.black.withOpacity(0.25),
-            ],
-          ),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < 760;
-
-            return isNarrow
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _heroLeft(
-                        farmName,
-                        area,
-                        tempText,
-                        subtitle,
-                        firstForecastItem?.mainCondition,
-                      ),
-                      const SizedBox(height: 20),
-                      _heroRight(),
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _heroLeft(
-                          farmName,
-                          area,
-                          tempText,
-                          subtitle,
-                          firstForecastItem?.mainCondition,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        flex: 2,
-                        child: _heroRight(),
-                      ),
-                    ],
-                  );
-          },
-        ),
+      child: IconButton(
+        onPressed: farmDashboards.length <= 1 ? null : onTap,
+        icon: Icon(icon, color: _textPrimary),
       ),
     );
   }
@@ -727,9 +799,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: _accentGreen,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: const Text(
-              "Live",
-              style: TextStyle(
+            child: Text(
+              "${_selectedFarmIndex + 1} / $totalFarms",
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -742,10 +814,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           spacing: 10,
           runSpacing: 10,
           children: [
-            _glassMetric("Farms", "$totalFarms"),
-            _glassMetric("Zones", "$totalZones"),
-            _glassMetric("Devices", "$totalDevices"),
-            _glassMetric("Scheduled", "$totalScheduledZones"),
+            _glassMetric("Farm", "1"),
+            _glassMetric("Zones", "$_selectedTotalZones"),
+            _glassMetric("Devices", "$_selectedTotalDevices"),
+            _glassMetric("Scheduled", "$_selectedTotalScheduledZones"),
           ],
         ),
       ],
@@ -786,7 +858,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMiniStats() {
-    final allTelemetry = zoneInfos.expand((z) => z.telemetryList).toList();
+    final allTelemetry =
+        _selectedZoneInfos.expand((z) => z.telemetryList).toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -831,8 +904,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _miniStatCard(
               icon: Icons.sensors_rounded,
               iconColor: const Color(0xFF34D399),
-              title: "Active Sensors",
-              value: "$totalDevices",
+              title: "Active Devices",
+              value: "$_selectedTotalDevices",
               status: "Online",
               statusColor: _accentGreen,
             ),
@@ -984,13 +1057,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildRainInfoCard() {
-    final nextRain = _nextRainFarm();
+    final selectedWeather = _selectedWeatherInfo;
+    final forecast = selectedWeather?.forecast;
 
-    if (nextRain == null || nextRain.forecast == null) {
+    if (selectedWeather == null ||
+        forecast == null ||
+        !_isRainExpected(forecast)) {
       return _panelCard(
         title: "Rain Forecast Details",
         child: const Text(
-          "No rain forecast available for tracked farms.",
+          "No rain forecast available for this farm.",
           style: TextStyle(
             color: _textSecondary,
             fontSize: 15,
@@ -998,8 +1074,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-
-    final forecast = nextRain.forecast!;
 
     return _panelCard(
       title: "Rain Forecast Details",
@@ -1028,7 +1102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _softChip(
                 Icons.location_on_outlined,
-                nextRain.placeName ?? "Unknown area",
+                selectedWeather.placeName ?? "Unknown area",
               ),
               _softChip(
                 Icons.water_drop_outlined,
@@ -1037,8 +1111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _detailRow("Farm", nextRain.farm.name),
-          _detailRow("Area", nextRain.placeName ?? "Unknown"),
+          _detailRow("Farm", selectedWeather.farm.name),
+          _detailRow("Area", selectedWeather.placeName ?? "Unknown"),
           _detailRow(
             "Rain Window",
             _formatForecastRange(
@@ -1060,7 +1134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _panelCard(
         title: "Next Watering Schedule",
         child: const Text(
-          "No watering schedule found.",
+          "No watering schedule found for this farm.",
           style: TextStyle(
             color: _textSecondary,
             fontSize: 15,
@@ -1104,9 +1178,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildWeatherDetailsCard() {
-    final selectedFarm = _selectedFarmWeather();
+    final selectedWeather = _selectedWeatherInfo;
 
-    if (selectedFarm == null) {
+    if (selectedWeather == null) {
       return _panelCard(
         title: "Weather Details",
         child: const Text(
@@ -1120,11 +1194,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final WeatherForecastItem? currentItem =
-        selectedFarm.todayForecast.isNotEmpty
-            ? selectedFarm.todayForecast.first
-            : (selectedFarm.forecastBundle != null &&
-                    selectedFarm.forecastBundle!.items.isNotEmpty
-                ? selectedFarm.forecastBundle!.items.first
+        selectedWeather.todayForecast.isNotEmpty
+            ? selectedWeather.todayForecast.first
+            : (selectedWeather.forecastBundle != null &&
+                    selectedWeather.forecastBundle!.items.isNotEmpty
+                ? selectedWeather.forecastBundle!.items.first
                 : null);
 
     if (currentItem == null) {
@@ -1281,9 +1355,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFiveDayForecastCard() {
-    final selectedFarm = _selectedFarmWeather();
+    final selectedWeather = _selectedWeatherInfo;
 
-    if (selectedFarm == null || selectedFarm.dailySummaries.isEmpty) {
+    if (selectedWeather == null || selectedWeather.dailySummaries.isEmpty) {
       return _panelCard(
         title: "5 Day Forecast",
         child: const Text(
@@ -1296,12 +1370,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final items = selectedFarm.dailySummaries.take(5).toList();
+    final items = selectedWeather.dailySummaries.take(5).toList();
 
     return _panelCard(
       title: "5 Day Forecast",
       trailing: Text(
-        selectedFarm.placeName ?? "",
+        selectedWeather.placeName ?? "",
         style: const TextStyle(
           color: _accentGreen,
           fontWeight: FontWeight.w600,
@@ -1405,9 +1479,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _bestZoneContent() {
-    if (zoneInfos.isEmpty) {
+    if (_selectedZoneInfos.isEmpty) {
       return const Text(
-        "No zone data available.",
+        "No zone data available for this farm.",
         style: TextStyle(
           color: _textSecondary,
           fontSize: 15,
@@ -1415,7 +1489,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final sorted = [...zoneInfos];
+    final sorted = [..._selectedZoneInfos];
     sorted.sort((a, b) {
       final aScore = _healthScore(a.telemetryList);
       final bScore = _healthScore(b.telemetryList);
@@ -1426,9 +1500,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _needsAttentionContent() {
-    if (zoneInfos.isEmpty) {
+    if (_selectedZoneInfos.isEmpty) {
       return const Text(
-        "No zone data available.",
+        "No zone data available for this farm.",
         style: TextStyle(
           color: _textSecondary,
           fontSize: 15,
@@ -1436,18 +1510,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final sorted = [...zoneInfos];
+    final sorted = [..._selectedZoneInfos];
     sorted.sort((a, b) {
       final aScore = _healthScore(a.telemetryList);
       final bScore = _healthScore(b.telemetryList);
-      return bScore.compareTo(aScore);
+      return aScore.compareTo(bScore);
     });
 
-    return _zoneSnapshot(sorted.last);
+    return _zoneSnapshot(sorted.first);
   }
 
   Widget _recommendationsContent() {
-    if (zoneInfos.isEmpty) {
+    if (_selectedZoneInfos.isEmpty) {
       return const Text(
         "No recommendations available.",
         style: TextStyle(
@@ -1457,8 +1531,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    final List<ZoneDashboardInfo> weakZones =
-        zoneInfos.where((z) => _healthScore(z.telemetryList) < 70).toList();
+    final List<ZoneDashboardInfo> weakZones = _selectedZoneInfos
+        .where((z) => _healthScore(z.telemetryList) < 70)
+        .toList();
 
     weakZones.sort((a, b) {
       final aScore = _healthScore(a.telemetryList);
@@ -1467,7 +1542,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     final List<ZoneDashboardInfo> unscheduledZones =
-        zoneInfos.where((z) => z.schedule == null).toList();
+        _selectedZoneInfos.where((z) => z.schedule == null).toList();
 
     final List<Widget> items = [];
 
@@ -1496,19 +1571,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    if (farmsExpectingRain > 0) {
-      final rainyFarm = _nextRainFarm();
-      if (rainyFarm != null) {
-        items.add(
-          _recommendationTile(
-            icon: Icons.cloud_rounded,
-            iconColor: _accentBlue,
-            title: rainyFarm.farm.name,
-            farmName: rainyFarm.placeName ?? "Weather alert",
-            message: "Rain is expected soon. Consider delaying irrigation.",
-          ),
-        );
-      }
+    final selectedWeather = _selectedWeatherInfo;
+    if (selectedWeather != null && _isRainExpected(selectedWeather.forecast)) {
+      items.add(
+        _recommendationTile(
+          icon: Icons.cloud_rounded,
+          iconColor: _accentBlue,
+          title: selectedWeather.farm.name,
+          farmName: selectedWeather.placeName ?? "Weather alert",
+          message: "Rain is expected soon. Consider delaying irrigation.",
+        ),
+      );
     }
 
     if (items.isEmpty) {
@@ -1516,7 +1589,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _recommendationTile(
           icon: Icons.check_circle_rounded,
           iconColor: _accentGreen,
-          title: "All Zones",
+          title: _selectedFarmData?.farm.name ?? "This Farm",
           farmName: "System Status",
           message: "Everything looks good. No urgent action is required.",
         ),
@@ -1781,6 +1854,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Center(
         child: CircularProgressIndicator(
           color: _accentGreen,
+        ),
+      );
+    }
+
+    if (farmDashboards.isEmpty) {
+      return const Center(
+        child: Text(
+          "No farms available.",
+          style: TextStyle(color: _textSecondary, fontSize: 16),
         ),
       );
     }
